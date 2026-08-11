@@ -1,33 +1,29 @@
+
+import sys
 import numpy as np
 from kinematics.inverse import inverse_kinematics
 from kinematics.jacobian import InvJac
 from control.sliding_pi import SlidingPIController
 from config.parameters import DT
 
+from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QFont
+from gui.screen.MainWindow import MainWindow
+
+
 def main():
-    controller = SlidingPIController()
-    
-    # Ejemplo de loop básico
-    t = 0.0
-    while t < 100.0:
-        # 1. Generar referencia (aquí irá el TrajectoryGenerator)
-        y_des = np.array([0.1, 0.2])          # ejemplo
-        yp_des = np.array([0.0, 0.0])
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
 
-        # 2. Cinemática inversa
-        qd, da, R = inverse_kinematics(y_des)
+    # Fuente general
+    font = QFont("Segoe UI", 10)
+    app.setFont(font)
 
-        # 3. Jacobiano + twist (cuando lo terminemos)
-        # A, _ = InvJac(da, R)
-        # twist = ...
-        # qpd = A @ twist
+    window = MainWindow()
+    window.show()
 
-        # 4. Errores (cuando tengamos la planta)
-        # delta_q  = qd - q_actual
-        # delta_qp = qpd - qp_actual
-        # Tau = controller.step(delta_q, delta_qp)
+    sys.exit(app.exec())
 
-        t += DT
 
 if __name__ == "__main__":
     main()
