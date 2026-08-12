@@ -1,5 +1,21 @@
 import numpy as np
 
+
+# config/parameters.py
+
+# Longitud de referencia (home) del modelo
+OFFSET_ACTUADOR = 1.4895          # valor actual que tienes
+
+# Carrera real del Actuonix LP16
+STROKE = 0.100                    # 100 mm = 0.1 m
+
+# Rango físico completo
+ACTUATOR_MIN = OFFSET_ACTUADOR - (STROKE / 2)   # ≈ 1.4395 m
+ACTUATOR_MAX = OFFSET_ACTUADOR + (STROKE / 2)   # ≈ 1.5395 m
+
+ACTUATOR_HOME_PERCENT = 100
+
+
 # ====================== Geometría (escala 1:1 actual) ======================
 Az = np.array([
     [ 0.19087453,  0.23866804, -0.35236387],
@@ -22,7 +38,7 @@ Bz = np.array([
 # ====================== Parámetros de la plataforma ======================
 ALPHA_0 = 0.0
 D = np.array([0.0, 0.0, 2.1])
-RT = 0.0                    # ← pon el valor real de rt
+RT = 0.9                    # ← pon el valor real de rt
 OFFSET_ACTUADOR = 1.4895    # medido de SolidWorks (cambiará en el prototipo)
 
 # ====================== Controlador ======================

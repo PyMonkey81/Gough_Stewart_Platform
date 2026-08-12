@@ -1,9 +1,17 @@
-#gui/dialog/serialconfigdialog.py
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QPushButton, QMessageBox, QGroupBox, QFormLayout, QSizePolicy
-)
 from PySide6.QtCore import Qt, Slot
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+)
+
 
 class SerialConfigDialog(QDialog):
     def __init__(self, serial_manager, parent=None):
@@ -92,7 +100,6 @@ class SerialConfigDialog(QDialog):
         layout.setSpacing(14)
         layout.setContentsMargins(18, 18, 18, 18)
 
-        # ---------- Grupo Puerto ----------
         group = QGroupBox("Puerto Serial")
         form = QFormLayout(group)
         form.setSpacing(10)
@@ -111,7 +118,6 @@ class SerialConfigDialog(QDialog):
         form.addRow("Seleccionar puerto:", port_row)
         layout.addWidget(group)
 
-        # ---------- Estado ----------
         self.status_label = QLabel("Estado: Desconectado")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("""
@@ -123,7 +129,6 @@ class SerialConfigDialog(QDialog):
         """)
         layout.addWidget(self.status_label)
 
-        # ---------- Botones Conectar / Desconectar ----------
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
 
@@ -139,7 +144,6 @@ class SerialConfigDialog(QDialog):
         btn_layout.addWidget(self.btn_disconnect)
         layout.addLayout(btn_layout)
 
-        # ---------- Botón Cerrar ----------
         self.btn_close = QPushButton("Cerrar")
         self.btn_close.clicked.connect(self.accept)
         layout.addWidget(self.btn_close)
@@ -148,31 +152,16 @@ class SerialConfigDialog(QDialog):
         self.serial_manager.connected_changed.connect(self.on_connection_changed)
         self.serial_manager.error_occurred.connect(self.on_error)
 
-    def refresh_ports(self):
-        current_data = self.port_combo.currentData()
-        self.port_combo.clear()
-
-        ports = self.serial_manager.available_ports()
-
-        if not ports:
-            self.port_combo.addItem("No se encontraron puertos")
-            self.btn_connect.setEnabled(False)
-            return
-
-        for p in ports:
-            display_text = f"{p['name']}   —   {p['description']}"
-            self.port_combo.addItem(display_text, p['name'])
-
-        # Intentar restaurar la selección anterior
-        if current_data:
-            index = self.port_combo.findData(current_data)
-            if index >= 0:
-                self.port_combo.setCurrentIndex(index)
-
-        self.update_ui_state()
-
     @Slot()
     def on_connect(self):
+        if self.serial_manager.is_connected:
+            QMessageBox.information(
+                self,
+                "Ya conectado",
+                f"Ya estás conectado a {self.serial_manager.current_port}",
+            )
+            return
+
         port_name = self.port_combo.currentData()
         if not port_name:
             QMessageBox.warning(self, "Puerto no válido", "Selecciona un puerto serial válido.")
@@ -180,7 +169,7 @@ class SerialConfigDialog(QDialog):
 
         self.btn_connect.setEnabled(False)
         self.btn_connect.setText("Conectando...")
-        self.status_label.setText("Estado: Conectando...")
+        self.status_label.setText(f"Estado: Conectando a {port_name}...")
         self.status_label.setStyleSheet("""
             font-size: 14px; font-weight: bold; padding: 10px;
             border-radius: 6px; background-color: #2a2a2a; color: #ffcc00;
@@ -197,20 +186,55 @@ class SerialConfigDialog(QDialog):
         self.update_ui_state()
 
         if connected:
-            port = self.port_combo.currentData() or "desconocido"
+            port = self.serial_manager.current_port or self.port_combo.currentData() or "desconocido"
             QMessageBox.information(self, "Conectado", f"Conectado correctamente a:\n{port}")
-        # No mostramos mensaje al desconectar para no molestar
 
     @Slot(str)
     def on_error(self, message: str):
         self.update_ui_state()
         QMessageBox.critical(self, "Error de comunicación", message)
 
+    def refresh_ports(self):
+        self.port_combo.blockSignals(True)
+        self.port_combo.clear()
+
+        ports = self.serial_manager.available_ports()
+
+        if not ports:
+            self.port_combo.addItem("No se encontraron puertos")
+            self.port_combo.blockSignals(False)
+            self.update_ui_state()
+            return
+
+        for port in ports:
+            display_text = f"{port['name']}  —  {port['description']}"
+            self.port_combo.addItem(display_text, port['name'])
+
+        target = self.serial_manager.current_port or "COM8"
+        index = self.port_combo.findData(target)
+        if index >= 0:
+            self.port_combo.setCurrentIndex(index)
+        else:
+            preferred_keywords = ["com8", "giga", "arduino", "usb serial", "com"]
+            found = False
+            for i in range(self.port_combo.count()):
+                text = self.port_combo.itemText(i).lower()
+                if any(keyword in text for keyword in preferred_keywords):
+                    self.port_combo.setCurrentIndex(i)
+                    found = True
+                    break
+            if not found:
+                self.port_combo.setCurrentIndex(0)
+
+        self.port_combo.blockSignals(False)
+        self.update_ui_state()
+
     def update_ui_state(self):
         connected = self.serial_manager.is_connected
+        port = self.serial_manager.current_port or "—"
 
         if connected:
-            self.status_label.setText("Estado: ● Conectado")
+            self.status_label.setText(f"Estado: ● Conectado a {port}")
             self.status_label.setStyleSheet("""
                 font-size: 14px; font-weight: bold; padding: 10px;
                 border-radius: 6px; background-color: #1b3d1b; color: #4caf50;
@@ -226,8 +250,10 @@ class SerialConfigDialog(QDialog):
                 font-size: 14px; font-weight: bold; padding: 10px;
                 border-radius: 6px; background-color: #3d1b1b; color: #ff6b6b;
             """)
-            self.btn_connect.setEnabled(self.port_combo.count() > 0 and self.port_combo.currentData() is not None)
+            has_valid_port = self.port_combo.count() > 0 and self.port_combo.currentData() is not None
+            self.btn_connect.setEnabled(has_valid_port)
             self.btn_connect.setText("Conectar")
             self.btn_disconnect.setEnabled(False)
             self.port_combo.setEnabled(True)
             self.btn_refresh.setEnabled(True)
+
