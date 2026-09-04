@@ -14,6 +14,7 @@
   "KI_S": 300.0,
   "T_HOME_END": 60.0,
   "T_TRACKING_END": 653.0,
+  "DEMO_DURATION": 60.0,
   "DT": 0.001,
   "FILTER_WN": 3.4,
   "TRAJ_POINTS": [

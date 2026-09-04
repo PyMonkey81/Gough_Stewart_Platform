@@ -13,7 +13,7 @@ STROKE = 0.100                    # 100 mm = 0.1 m
 ACTUATOR_MIN = OFFSET_ACTUADOR - (STROKE / 2)   # ≈ 1.4395 m
 ACTUATOR_MAX = OFFSET_ACTUADOR + (STROKE / 2)   # ≈ 1.5395 m
 
-ACTUATOR_HOME_PERCENT = 100
+ACTUATOR_HOME_PERCENT = 50
 
 
 # ====================== Geometría (escala 1:1 actual) ======================
@@ -51,3 +51,21 @@ T_HOME_END = 60.0
 T_TRACKING_END = 653.0
 DT = 0.001
 FILTER_WN = 3.4
+
+# Duración de la demo GUI en modo AUTO (no confundir con T_TRACKING_END)
+DEMO_DURATION = 60.0
+
+# ====================== Modo CARTESIANO (MOTION CONTROL) ======================
+# Límites de los sliders cartesianos, elegidos para que quepan dentro del
+# rango físico [ACTUATOR_MIN, ACTUATOR_MAX] en la mayoría de orientaciones.
+ALPHA_BETA_LIMIT_DEG = 90.0
+
+CARTESIAN_LIMITS = {
+    "x": 0.05, "y": 0.05, "z": 0.05,            # m
+    "roll": 15.0, "pitch": 15.0, "yaw": 15.0,   # deg
+}
+
+CARTESIAN_STEP = {
+    "linear": 0.001,   # m
+    "angular": 0.5,    # deg
+}

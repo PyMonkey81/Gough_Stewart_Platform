@@ -210,12 +210,12 @@ class SerialConfigDialog(QDialog):
             display_text = f"{port['name']}  —  {port['description']}"
             self.port_combo.addItem(display_text, port['name'])
 
-        target = self.serial_manager.current_port or "COM8"
+        target = self.serial_manager.current_port
         index = self.port_combo.findData(target)
         if index >= 0:
             self.port_combo.setCurrentIndex(index)
         else:
-            preferred_keywords = ["com8", "giga", "arduino", "usb serial", "com"]
+            preferred_keywords = ["arduino", "usb serial", "usb-serial", "acm", "usb"]
             found = False
             for i in range(self.port_combo.count()):
                 text = self.port_combo.itemText(i).lower()

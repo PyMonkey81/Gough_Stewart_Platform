@@ -5,11 +5,11 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 class ActuatorCanvas(FigureCanvas):
     def __init__(self, parent=None):
-        self.fig = Figure(figsize=(6, 3.2), facecolor="#1e1e1e")
+        self.fig = Figure(figsize=(6, 3.2), facecolor="#1b263b")
         super().__init__(self.fig)
         self.ax = self.fig.add_subplot(111)
-        self.ax.set_facecolor("#1e1e1e")
-        self.ax.set_title("Posiciones de actuadores (%)", color="#e0e0e0", fontsize=11)
+        self.ax.set_facecolor("#1b263b")
+        self.ax.set_title("ACTUADORES", color="#e0e6ed", fontsize=12, fontweight="bold")
         self.ax.set_xlabel("Tiempo (s)", color="#aaa")
         self.ax.set_ylabel("Posición (%)", color="#aaa")
         self.ax.tick_params(colors="#888")
@@ -47,4 +47,12 @@ class ActuatorCanvas(FigureCanvas):
 
         # Mantener toda la trayectoria dibujada como un chart de líneas, sin recortar historial
         self.ax.set_xlim(0.0, self.time_window)
+        self.draw_idle()
+
+    def clear(self):
+        """Reinicia el historial para arrancar una nueva corrida desde t=0."""
+        self.time = []
+        self.data = [[] for _ in range(6)]
+        for line in self.lines:
+            line.set_data([], [])
         self.draw_idle()

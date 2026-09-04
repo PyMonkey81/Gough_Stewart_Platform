@@ -48,9 +48,6 @@ class SerialManager(QObject):
 
     def preferred_port(self) -> str | None:
         ports = self.available_ports()
-        port_names = [p["name"].upper() for p in ports]
-        if "COM8" in port_names:
-            return "COM8"
         if not ports:
             return None
         return ports[0]["name"]
@@ -59,7 +56,7 @@ class SerialManager(QObject):
         ports = []
         for info in sorted(
             QSerialPortInfo.availablePorts(),
-            key=lambda port: (0 if port.portName().upper() == "COM8" else 1, port.portName().lower())
+            key=lambda port: port.portName().lower()
         ):
             ports.append({
                 "name": info.portName(),
@@ -91,7 +88,6 @@ class SerialManager(QObject):
             return
 
         cmd = "pos " + ",".join(str(int(round(p))) for p in positions)
-        print(f"[SerialManager] Enviando comando: {cmd}")
         self.send_raw(cmd)
 
     def send_raw(self, command: str):

@@ -8,19 +8,13 @@ from config.parameters import Az, Bz, D
 
 class PlatformCanvas(FigureCanvas):
     def __init__(self, parent=None):
-        self.fig = Figure(figsize=(5, 4), facecolor="#1e1e1e")
+        self.fig = Figure(figsize=(5, 4), facecolor="#1b263b")
         super().__init__(self.fig)
         self.ax = self.fig.add_subplot(111, projection="3d")
-        self.ax.set_facecolor("#1e1e1e")
-        self.ax.set_title("Plataforma Gough-Stewart", color="#e0e0e0", fontsize=11)
-        self.ax.set_xlabel("X", color="#aaa")
-        self.ax.set_ylabel("Y", color="#aaa")
-        self.ax.set_zlabel("Z", color="#aaa")
-        self.ax.tick_params(colors="#888")
+        self.ax.set_facecolor("#1b263b")
+        # Sin caja/paneles matplotlib: solo dibujamos los ejes XYZ propios abajo.
+        self.ax.set_axis_off()
         self.ax.view_init(elev=26, azim=-58)
-        self.ax.set_xlim(-0.8, 0.8)
-        self.ax.set_ylim(-0.8, 0.8)
-        self.ax.set_zlim(0.0, 2.8)
         self.ax.set_box_aspect((1, 1, 0.9))
 
         
@@ -83,20 +77,31 @@ class PlatformCanvas(FigureCanvas):
         )
 
         self.leg_lines = []
-        for _ in range(6):
-            # ===============================================
-            # CAMBIOS AQUI: ACTUADORES MAS VISIBLES
-            # ===============================================
+        self.leg_colors = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7", "#dfe6e9"]
+        for i in range(6):
             line, = self.ax.plot(
                 [], [], [],
-                color="#ffff00",      # Un color brillante que contraste
-                linewidth=3.0,       # Mayor grosor para que destaquen
-                alpha=1.0            # Completamente opaco
+                color=self.leg_colors[i],
+                linewidth=3.0,
+                alpha=1.0
             )
             self.leg_lines.append(line)
 
+        # Numerar las 6 patas junto a su anclaje en la base (punto fijo)
+        for i, p in enumerate(self.base_points):
+            self.ax.text(p[0], p[1], p[2] - 0.05, str(i + 1), color=self.leg_colors[i], fontsize=10, weight="bold")
+
         # Dibujar actuadores desde el primer frame para que sean visibles aun sin iniciar simulacion.
         self._update_leg_lines(self.platform_points)
+
+        # Encuadre ajustado a la geometría real (base + plataforma home), no una caja fija de 2.5 m.
+        all_points = np.vstack([self.base_points, self.platform_points])
+        margin = 0.15
+        mins = all_points.min(axis=0) - margin
+        maxs = all_points.max(axis=0) + margin
+        self.ax.set_xlim(mins[0], maxs[0])
+        self.ax.set_ylim(mins[1], maxs[1])
+        self.ax.set_zlim(mins[2], maxs[2])
 
         self.fig.tight_layout()
 
