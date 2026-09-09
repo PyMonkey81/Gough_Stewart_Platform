@@ -16,7 +16,9 @@ def main():
     app.setStyle("Fusion")
 
     # Fuente general
-    font = QFont("Segoe UI", 10)
+    font = QFont("Segoe UI" if sys.platform.startswith("win") else "Ubuntu", 10)
+    if not font.exactMatch():
+        font = QFont("Noto Sans", 10)
     app.setFont(font)
 
     window = MainWindow()

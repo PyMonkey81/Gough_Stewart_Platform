@@ -1,6 +1,24 @@
+import sys
+from pathlib import Path
+
 from PySide6.QtCore import Q_ARG, QMetaObject, QObject, QThread, QTimer, Qt, Signal
 from PySide6.QtSerialPort import QSerialPortInfo
 from connection.serial_worker import SerialWorker
+
+
+_LINUX_SKIP = ("ttyS", "ttyprintk")
+_LINUX_PREF = ("ttyACM", "ttyUSB", "ttyAMA")
+
+
+def _canonical_port_name(info: QSerialPortInfo) -> str:
+    location = info.systemLocation() or ""
+    name = info.portName() or ""
+    if sys.platform.startswith("linux"):
+        if location.startswith("/dev/"):
+            return location
+        if name and not name.startswith("/dev/"):
+            return f"/dev/{name}"
+    return name or location
 
 
 class SerialManager(QObject):
@@ -54,15 +72,30 @@ class SerialManager(QObject):
 
     def available_ports(self):
         ports = []
-        for info in sorted(
-            QSerialPortInfo.availablePorts(),
-            key=lambda port: port.portName().lower()
-        ):
+        for info in QSerialPortInfo.availablePorts():
+            name = _canonical_port_name(info)
+            if not name:
+                continue
+
+            short = Path(name).name
+            if sys.platform.startswith("linux") and short.startswith(_LINUX_SKIP):
+                continue
+
             ports.append({
-                "name": info.portName(),
+                "name": name,
+                "short": short,
                 "description": info.description() or "Puerto serial",
                 "manufacturer": info.manufacturer() or "Desconocido"
             })
+
+        def rank(port):
+            short = port["short"]
+            for index, prefix in enumerate(_LINUX_PREF):
+                if short.startswith(prefix):
+                    return (0, index, short)
+            return (1, 99, short)
+
+        ports.sort(key=rank)
         return ports
 
     def connect_port(self, port_name: str | None = None, baudrate: int = 115200):
