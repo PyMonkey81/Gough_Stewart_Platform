@@ -1,3 +1,4 @@
+import os
 import time
 
 from PySide6.QtCore import QObject, Signal, Slot
@@ -24,8 +25,12 @@ class SerialWorker(QObject):
         if self.serial and self.serial.isOpen():
             self.serial.close()
 
+        name = port_name
+        if os.name != "nt" and name and not name.startswith("/dev/") and not name.startswith("\\\\"):
+            name = f"/dev/{name}"
+
         self.serial = QSerialPort()
-        self.serial.setPortName(port_name)
+        self.serial.setPortName(name)
         self.serial.setBaudRate(baudrate)
         self.serial.setDataBits(QSerialPort.Data8)
         self.serial.setParity(QSerialPort.NoParity)
@@ -39,7 +44,9 @@ class SerialWorker(QObject):
             return
 
         self.connected.emit(False)
-        self.error.emit(f"No se pudo abrir el puerto {port_name}")
+        err = self.serial.error()
+        detail = self.serial.errorString()
+        self.error.emit(f"No se pudo abrir {name} (error={err}): {detail}")
 
     @Slot()
     def disconnect_port(self):
