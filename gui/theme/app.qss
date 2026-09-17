@@ -1,0 +1,387 @@
+/* SCADA Industrial Dark Theme - Gough-Stewart Platform HMI */
+
+/* Color Variables (defined via stylesheet context) */
+/* Background: #0E1116, Panels: #161B22, Text: #E0E6ED */
+/* OK: #3DDC97, WARN: #F5C542, FAULT: #FF5C5C */
+
+/* ============ Main Window ============ */
+QMainWindow, QWidget {
+    background-color: #0E1116;
+    color: #E0E6ED;
+}
+
+/* ============ Top Bar / Header ============ */
+#headerBar {
+    background-color: #161B22;
+    border-bottom: 2px solid #3A444D;
+    min-height: 48px;
+    max-height: 48px;
+}
+
+#headerTitle {
+    font-size: 18px;
+    font-weight: bold;
+    color: #3DDC97;
+    font-family: 'Segoe UI', 'Inter', sans-serif;
+}
+
+#statusIndicator {
+    border-radius: 6px;
+    min-width: 12px;
+    min-height: 12px;
+    max-width: 12px;
+    max-height: 12px;
+}
+
+#statusIndicator.connected {
+    background-color: #3DDC97;
+    border: 1px solid #4FE5A8;
+}
+
+#statusIndicator.disconnected {
+    background-color: #666;
+    border: 1px solid #888;
+}
+
+#statusLabel, #portLabel, #baudLabel {
+    font-size: 11px;
+    color: #A0AAB8;
+    font-family: 'Segoe UI Mono', monospace;
+}
+
+/* ============ Buttons ============ */
+QPushButton {
+    background-color: #25333F;
+    color: #E0E6ED;
+    border: 1px solid #404D5C;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+QPushButton:hover {
+    background-color: #323D4D;
+    border-color: #505B6A;
+}
+
+QPushButton:pressed {
+    background-color: #1C2530;
+    border: 1px solid #3A444D;
+}
+
+QPushButton:disabled {
+    color: #668;
+    border-color: #353E4D;
+    background-color: #1a1f26;
+}
+
+/* Start button (green) */
+QPushButton#btn_start, QPushButton#btnStart {
+    background-color: #3DDC97;
+    border-color: #4FE5A8;
+    color: #000;
+    font-weight: bold;
+    font-size: 13px;
+    padding: 10px 16px;
+}
+
+QPushButton#btn_start:hover, QPushButton#btnStart:hover {
+    background-color: #4FE5A8;
+    border-color: #66FFBD;
+}
+
+QPushButton#btn_start:pressed, QPushButton#btnStart:pressed {
+    background-color: #2AC878;
+}
+
+/* Stop button (red) */
+QPushButton#btn_stop, QPushButton#btnStop {
+    background-color: #FF5C5C;
+    border-color: #FF7777;
+    color: #FFF;
+    font-weight: bold;
+    font-size: 13px;
+    padding: 10px 16px;
+}
+
+QPushButton#btn_stop:hover, QPushButton#btnStop:hover {
+    background-color: #FF7777;
+    border-color: #FF9999;
+}
+
+QPushButton#btn_stop:pressed, QPushButton#btnStop:pressed {
+    background-color: #E04040;
+}
+
+/* GOTO button (blue) */
+QPushButton#btn_goto, QPushButton#btnGoto {
+    background-color: #1A5FAE;
+    border-color: #2575D0;
+    font-weight: bold;
+}
+
+QPushButton#btn_goto:hover, QPushButton#btnGoto:hover {
+    background-color: #2575D0;
+    border-color: #2E8FFF;
+}
+
+/* ============ Group Boxes ============ */
+QGroupBox {
+    background-color: #161B22;
+    border: 2px solid #3A444D;
+    border-radius: 8px;
+    margin-top: 18px;
+    padding-top: 14px;
+    font-weight: bold;
+    color: #E0E6ED;
+    font-size: 14px;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 14px;
+    padding: 0 6px;
+}
+
+/* ============ Labels ============ */
+QLabel {
+    color: #E0E6ED;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+QLabel#labelSmall {
+    font-size: 11px;
+    color: #A0AAB8;
+}
+
+QLabel#labelValue {
+    font-size: 20px;
+    font-weight: bold;
+    color: #3DDC97;
+    font-family: 'Segoe UI Mono', monospace;
+}
+
+/* ============ ComboBox ============ */
+QComboBox {
+    background-color: #0E1116;
+    color: #E0E6ED;
+    border: 1px solid #404D5C;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-family: 'Segoe UI', sans-serif;
+    min-width: 100px;
+}
+
+QComboBox:hover {
+    border-color: #505B6A;
+}
+
+QComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+
+QComboBox::down-arrow {
+    image: none;
+    color: #A0AAB8;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #1A2530;
+    color: #E0E6ED;
+    selection-background-color: #3DDC97;
+    selection-color: #000;
+    border: 1px solid #404D5C;
+}
+
+/* ============ Sliders ============ */
+QSlider::groove:horizontal {
+    background: #0E1116;
+    height: 8px;
+    border-radius: 4px;
+    border: 1px solid #404D5C;
+    margin: 4px 0;
+}
+
+QSlider::handle:horizontal {
+    background: #3DDC97;
+    width: 16px;
+    margin: -4px 0;
+    border-radius: 8px;
+    border: none;
+    image: none;
+}
+
+QSlider::handle:horizontal:hover {
+    background: #4FE5A8;
+}
+
+QSlider::handle:horizontal:pressed {
+    background: #2AC878;
+}
+
+QSlider::sub-page:horizontal {
+    background: #3DDC97;
+    border-radius: 3px;
+}
+
+/* ============ SpinBox / DoubleSpinBox ============ */
+QSpinBox, QDoubleSpinBox {
+    background-color: #0E1116;
+    color: #E0E6ED;
+    border: 1px solid #404D5C;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 11px;
+    font-family: 'Segoe UI', sans-serif;
+    min-width: 70px;
+}
+
+QSpinBox:hover, QDoubleSpinBox:hover {
+    border-color: #505B6A;
+}
+
+QSpinBox::up-button, QSpinBox::down-button,
+QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
+    border: none;
+    background-color: #161B22;
+    width: 18px;
+}
+
+QSpinBox::up-button:hover, QSpinBox::down-button:hover,
+QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {
+    background-color: #25333F;
+}
+
+/* ============ Progress Bar ============ */
+QProgressBar {
+    border: 2px solid #404D5C;
+    border-radius: 4px;
+    background-color: #0E1116;
+    color: #E0E6ED;
+    text-align: center;
+    height: 26px;
+    font-size: 10px;
+    font-weight: bold;
+    font-family: 'Segoe UI Mono', monospace;
+}
+
+QProgressBar::chunk {
+    background-color: #3DDC97;
+    border-radius: 2px;
+    margin: 1px;
+}
+
+QProgressBar::chunk.warn {
+    background-color: #F5C542;
+}
+
+QProgressBar::chunk.fault {
+    background-color: #FF5C5C;
+}
+
+/* ============ List Widget ============ */
+QListWidget {
+    background-color: #0A0D11;
+    color: #C8D0D8;
+    border: 1px solid #3A444D;
+    border-radius: 4px;
+    font-family: 'Segoe UI Mono', 'Courier New', monospace;
+    font-size: 10px;
+    outline: none;
+}
+
+QListWidget::item {
+    padding: 3px;
+}
+
+QListWidget::item:hover {
+    background-color: #1A2530;
+}
+
+QListWidget::item:selected {
+    background-color: #3DDC97;
+    color: #000;
+}
+
+/* ============ Scroll Bar ============ */
+QScrollBar:vertical {
+    background-color: #0E1116;
+    width: 12px;
+    border: 1px solid #3A444D;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #3A444D;
+    border-radius: 4px;
+    min-height: 20px;
+    margin: 2px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #505B6A;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    border: none;
+    background-color: none;
+}
+
+QScrollBar:horizontal {
+    background-color: #0E1116;
+    height: 12px;
+    border: 1px solid #3A444D;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #3A444D;
+    border-radius: 4px;
+    min-width: 20px;
+    margin: 2px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #505B6A;
+}
+
+/* ============ CheckBox ============ */
+QCheckBox {
+    color: #E0E6ED;
+    font-size: 11px;
+    font-family: 'Segoe UI', sans-serif;
+    spacing: 6px;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    border: 1px solid #404D5C;
+    background-color: #0E1116;
+}
+
+QCheckBox::indicator:hover {
+    border-color: #505B6A;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #3DDC97;
+    border-color: #4FE5A8;
+}
+
+/* ============ Tooltips ============ */
+QToolTip {
+    background-color: #25333F;
+    color: #E0E6ED;
+    border: 1px solid #3A444D;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-family: 'Segoe UI', sans-serif;
+}

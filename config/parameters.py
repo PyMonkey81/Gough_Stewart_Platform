@@ -13,7 +13,7 @@ STROKE = 0.100                    # 100 mm = 0.1 m
 ACTUATOR_MIN = OFFSET_ACTUADOR - (STROKE / 2)   # ≈ 1.4395 m
 ACTUATOR_MAX = OFFSET_ACTUADOR + (STROKE / 2)   # ≈ 1.5395 m
 
-ACTUATOR_HOME_PERCENT = 50
+ACTUATOR_HOME_PERCENT = 0  # HOME = 0% (retraído, cenit)
 
 
 # ====================== Geometría (escala 1:1 actual) ======================
@@ -51,6 +51,10 @@ T_HOME_END = 60.0
 T_TRACKING_END = 653.0
 DT = 0.001
 FILTER_WN = 3.4
+
+# AUTO sequence timing: HOME → APPROACH → TRACK → RETURN → HOME
+APPROACH_S = 3.0    # Tiempo para interpolar de q=0 al primer waypoint
+RETURN_S = 3.0      # Tiempo para interpolar del último waypoint a q=0
 
 # Duración de la demo GUI en modo AUTO (no confundir con T_TRACKING_END)
 DEMO_DURATION = 60.0

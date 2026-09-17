@@ -5,10 +5,10 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 class ActuatorCanvas(FigureCanvas):
     def __init__(self, parent=None):
-        self.fig = Figure(figsize=(6, 3.2), facecolor="#1b263b")
+        self.fig = Figure(figsize=(6, 3.2), facecolor="#161B22")
         super().__init__(self.fig)
         self.ax = self.fig.add_subplot(111)
-        self.ax.set_facecolor("#1b263b")
+        self.ax.set_facecolor("#161B22")
         self.ax.set_title("ACTUADORES", color="#e0e6ed", fontsize=12, fontweight="bold")
         self.ax.set_xlabel("Tiempo (s)", color="#aaa")
         self.ax.set_ylabel("Posición (%)", color="#aaa")
