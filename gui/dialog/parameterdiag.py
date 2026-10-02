@@ -286,7 +286,7 @@ class ParametersDialog(QDialog):
         form_geo = QFormLayout(gb_geo)
 
         self.sp_alpha0 = self._spin(-1.0, 1.0, 4, 0.001)
-        self.sp_rt = self._spin(-10.0, 10.0, 2, 0.1)  # mm
+        self.sp_rt = self._spin(0.0, 200.0, 1, 1.0)  # mm
 
         self.sp_dx = self._spin(-100.0, 100.0, 2, 0.1)   # mm
         self.sp_dy = self._spin(-100.0, 100.0, 2, 0.1)   # mm
