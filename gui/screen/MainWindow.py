@@ -911,89 +911,23 @@ class MainWindow(QMainWindow):
             self.update_status_bar()
 
     def _auto_tick(self):
-        """AUTO sequence state machine: APPROACH → TRACK → RETURN → HOME."""
+        """AUTO sequence: use TrajectoryGenerator for all 3 phases (home, tracking, return)."""
         if not hasattr(self, "traj_gen"):
             return
         
-        # ---- State transitions ----
-        dt_elapsed = self.t - self.auto_t_start
+        # Get reference from generator (α, β) and their derivatives
+        # Generator handles all 3 phases internally with filters
+        t_return_end = self.traj_gen.cfg.t_tracking_end + self.traj_gen.cfg.t_home_end
         
-        if self.auto_state == "idle":
-            # Should not reach here in this tick; waiting for start
-            pass
-        
-        elif self.auto_state == "approach":
-            # Interpolate from q=[0]*6 to q_first over APPROACH_S seconds
-            if dt_elapsed >= APPROACH_S:
-                # Phase complete, transition to TRACK
-                self.auto_state = "track"
-                self.state = "TRACK"
-                self.auto_t_start = self.t
-                self.log_event("APPROACH → TRACK")
-            else:
-                # Linear interpolation of q_percent
-                progress = dt_elapsed / APPROACH_S
-                q_interp = (1 - progress) * np.zeros(6) + progress * self.auto_q_first
-                self.q_percent = q_interp
-                self.last_percent = q_interp
-                self.actuator_canvas.update_data(self.t, q_interp)
-                self.update_actuator_status(q_interp)
-        
-        elif self.auto_state == "track":
-            # Follow TrajectoryGenerator (α, β̄) → IK → q_percent
-            y_des, yp_des = self.traj_gen.step(self.t)
-            self.y_desired = y_des
-            
-            # Track end time (first check if tracking is over)
-            t_track_end = self.traj_gen.cfg.t_tracking_end
-            if self.t >= t_track_end:
-                # Phase complete, transition to RETURN
-                self.auto_state = "return"
-                self.state = "RETURN"
-                self.auto_t_start = self.t
-                self.log_event("TRACK → RETURN")
-            else:
-                # Normal tracking
-                try:
-                    q_actuator, da, R = inverse_kinematics(self.y_desired)
-                    self.q_actuator = q_actuator
-                    self.da = da
-                    self.R = R
-                    self.q_percent = length_to_percent(q_actuator)
-                    self.last_percent = self.q_percent
-                    self._update_pose_labels_tarea()
-                    self.platform_canvas.update_platform(self.da, self.R)
-                    self.actuator_canvas.update_data(self.t, self.q_percent)
-                    self.update_actuator_status(self.q_percent)
-                    self._maybe_send(self.q_percent)
-                except Exception as e:
-                    self.log_event(f"ERROR IK (TRACK): {e}")
-                    self.paro()
-        
-        elif self.auto_state == "return":
-            # Interpolate from q_last to q=[0]*6 over RETURN_S seconds
-            if dt_elapsed >= RETURN_S:
-                # Phase complete, transition to HOME
-                self.auto_state = "home_final"
-                self.auto_t_start = self.t
-                self.log_event("RETURN → HOME")
-            else:
-                # Linear interpolation of q_percent
-                progress = dt_elapsed / RETURN_S
-                q_interp = (1 - progress) * self.auto_q_last + progress * np.zeros(6)
-                self.q_percent = q_interp
-                self.last_percent = q_interp
-                self.actuator_canvas.update_data(self.t, q_interp)
-                self.update_actuator_status(q_interp)
-                self._maybe_send(q_interp)
-        
-        elif self.auto_state == "home_final":
-            # Final HOME: transition to HOME state, set en_home=True
+        # Check if we've reached the end of the entire sequence
+        if self.t > t_return_end or self.traj_gen.phase == "done":
+            # Sequence complete: transition to HOME state, set en_home=True
             self.q_percent[:] = 0.0
             self.last_percent[:] = 0.0
             self.actuator_canvas.update_data(self.t, np.zeros(6))
             self.update_actuator_status(np.zeros(6))
             self.platform_canvas.update_platform_at_home()
+            self._update_pose_labels_tarea()
             if self.serial_manager.is_connected:
                 self.serial_manager.send_raw("home")
             
@@ -1007,6 +941,37 @@ class MainWindow(QMainWindow):
             # Log sequence complete
             self.log_event("RETURN → HOME (secuencia completada)")
             self.update_status_bar()
+            return
+        
+        # Normal tracking: get reference from generator
+        try:
+            y_des, yp_des = self.traj_gen.step(self.t)
+            self.y_desired = y_des
+            
+            # Update phase label: map generator phases to user-friendly names
+            # Generator: "home" → APPROACH, "tracking" → TRACK, "return" → RETURN, "done" → HOME
+            phase_map = {"home": "APPROACH", "tracking": "TRACK", "return": "RETURN", "done": "HOME"}
+            phase_str = phase_map.get(self.traj_gen.phase, "UNKNOWN")
+            self.lbl_track_phase.setText(phase_str)
+            
+            # Calculate IK based on (α, β) from generator
+            q_actuator, da, R = inverse_kinematics(self.y_desired)
+            self.q_actuator = q_actuator
+            self.da = da
+            self.R = R
+            self.q_percent = length_to_percent(q_actuator)
+            self.last_percent = self.q_percent
+            
+            # Update displays
+            self._update_pose_labels_tarea()  # Shows α, β from generator
+            self.platform_canvas.update_platform(self.da, self.R)
+            self.actuator_canvas.update_data(self.t, self.q_percent)
+            self.update_actuator_status(self.q_percent)
+            self._maybe_send(self.q_percent)
+            
+        except Exception as e:
+            self.log_event(f"ERROR IK (AUTO): {e}")
+            self.paro()
 
     def _manual_tarea_tick(self):
         a_rad = np.deg2rad(self.spin_alpha.value())
@@ -1212,42 +1177,26 @@ class MainWindow(QMainWindow):
         
         # Si estamos en HOLD (pausa), reanudar desde ahí
         if self.state == "HOLD" and self.hold_state is not None:
-            self.auto_state = self.hold_state
-            # Restaurar estado (APPROACH, TRACK, o RETURN)
-            if self.hold_state == "approach":
+            # Reanudar desde donde estábamos (el generador mantiene su estado, t congelado)
+            # Restaurar el estado visual basado en la fase guardada
+            if self.hold_state == "home":
                 self.state = "APPROACH"
-            elif self.hold_state == "track":
+            elif self.hold_state == "tracking":
                 self.state = "TRACK"
             elif self.hold_state == "return":
                 self.state = "RETURN"
             self.log_event(f"Reanudando desde {self.hold_state.upper()}")
-        # Si hay demo_active, comenzar APPROACH
+        # Si hay demo_active, comenzar la secuencia desde t=0
         elif self.demo_active:
             # Limpiar valores previos de y_desired (prohibido recuperar viejos)
             self.y_desired[:] = 0.0
+            self.t = 0.0
             
-            # Empezar en APPROACH desde q=0
+            # Reset del generator (filtros, fase, etc.)
             if hasattr(self, "traj_gen"):
-                try:
-                    # Calcular q_percent para primer y último waypoint
-                    y_first = np.array([self.traj_gen.y_start_a, self.traj_gen.y_start_b])
-                    q_first_actuator, _, _ = inverse_kinematics(y_first)
-                    self.auto_q_first = length_to_percent(q_first_actuator)
-                    
-                    # Último waypoint: evaluar spline en t_tracking_end
-                    t_end = self.traj_gen.cfg.t_tracking_end
-                    y_last_a = float(self.traj_gen.spline_a(t_end))
-                    y_last_b = float(self.traj_gen.spline_b(t_end))
-                    y_last = np.array([y_last_a, y_last_b])
-                    q_last_actuator, _, _ = inverse_kinematics(y_last)
-                    self.auto_q_last = length_to_percent(q_last_actuator)
-                    
-                    self.state = "APPROACH"
-                    self.auto_state = "approach"
-                    self.log_event("APPROACH → TRACK → RETURN → HOME")
-                except Exception as e:
-                    self.log_event(f"ERROR IK: {e}")
-                    return
+                self.traj_gen.reset()
+                self.state = "APPROACH"  # Secuencia comienza en HOME fase, pero visualmente APPROACH
+                self.log_event("APPROACH → TRACK → RETURN → HOME")
         else:
             # JOG mode, no AUTO
             self.state = "JOG"
@@ -1274,12 +1223,12 @@ class MainWindow(QMainWindow):
         self.timer.stop()
         
         # Guardar estado actual para poder reanudar (solo si estamos en AUTO)
-        if self.state in ["APPROACH", "TRACK", "RETURN"]:
-            self.hold_state = self.auto_state
+        if self.state in ["APPROACH", "TRACK", "RETURN"] and hasattr(self, "traj_gen"):
+            self.hold_state = self.traj_gen.phase  # Guardar la fase del generator
             self.state = "HOLD"
         
         self.btn_start.setEnabled(True)
-        self.log_event("PARO (pausa, estado guardado)")
+        self.log_event(f"PARO (pausa en {self.hold_state.upper() if self.hold_state else 'n/a'})")
         self.update_status_bar()
 
     def stop(self):
