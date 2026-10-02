@@ -59,7 +59,7 @@ class TrajectoryGenerator:
         self.y_start_b = 0.0
 
         self.phase = "home"
-        self.y_current = np.array([0.0, 0.0])   # [α, β]
+        self.y_current = np.array([0.0, np.pi / 2])   # cenit: alpha 0, elevación 90°
         self.yp_current = np.array([0.0, 0.0])
 
     def set_tracking_points(self, points: list):
@@ -118,8 +118,10 @@ class TrajectoryGenerator:
         # -------------------------------------------------
         if t < t_home:
             progress = t / t_home if t_home > 0 else 1.0
+            # TIK: beta es elevación desde el horizonte. Cenit (HOME) = pi/2, no 0.
+            # La rampa sale de (0, pi/2) hacia el punto 1 de la tabla.
             ur_a = self.y_start_a * progress
-            ur_b = self.y_start_b * progress
+            ur_b = (np.pi / 2) + (self.y_start_b - np.pi / 2) * progress
 
             ya, ypa = self.filter_a.step(ur_a)
             yb, ypb = self.filter_b.step(ur_b)
@@ -157,8 +159,9 @@ class TrajectoryGenerator:
             local_t = max(t - t_end, 0.0)
             progress = min(local_t / return_duration, 1.0)
 
+            # Retorno al cenit (alpha 0, beta = pi/2), no a beta 0 (horizonte).
             target_a = self.y_current[0] * (1.0 - progress)
-            target_b = self.y_current[1] * (1.0 - progress)
+            target_b = self.y_current[1] + (np.pi / 2 - self.y_current[1]) * progress
 
             ya, ypa = self.filter_a.step(target_a)
             yb, ypb = self.filter_b.step(target_b)
@@ -178,7 +181,7 @@ class TrajectoryGenerator:
         self.filter_a.reset()
         self.filter_b.reset()
         self.phase = "home"
-        self.y_current = np.array([0.0, 0.0])
+        self.y_current = np.array([0.0, np.pi / 2])
         self.yp_current = np.array([0.0, 0.0])
 
     def generate(self, t_final: float = 800.0):

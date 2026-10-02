@@ -84,7 +84,7 @@ class MainWindow(QMainWindow):
         self._oor_active = False         # guarda de "pose fuera de carrera" (cartesiano)
 
         # Pose deseada actual (modo TAREA, usa TIK/PIK sin modificar)
-        self.y_desired = np.array([0.0, 0.0])   # [a, b] rad
+        self.y_desired = np.array([0.0, np.pi / 2])   # cenit: alpha 0, elevación 90°
 
         # Resultados del último cálculo de cinemática
         self.q_actuator = np.zeros(6)
@@ -1039,7 +1039,7 @@ class MainWindow(QMainWindow):
         self.spin_roll.setValue(0.0)
         self.spin_pitch.setValue(0.0)
         self.spin_yaw.setValue(0.0)
-        self.y_desired[:] = 0.0
+        self.y_desired[:] = (0.0, np.pi / 2)
         
         # 4. Reset de TrajectoryGenerator (filtros, fase, tiempo)
         if hasattr(self, "traj_gen"):
@@ -1178,7 +1178,7 @@ class MainWindow(QMainWindow):
         # Reset de tiempo y filtros (limpia estado previo)
         self.t = 0.0
         self.traj_gen.reset()
-        self.y_desired[:] = 0.0
+        self.y_desired[:] = (0.0, np.pi / 2)
         
         # Marcar que hay demo activa
         self.demo_active = True
@@ -1213,7 +1213,7 @@ class MainWindow(QMainWindow):
         # Si hay demo_active, comenzar la secuencia desde t=0
         elif self.demo_active:
             # Limpiar valores previos de y_desired (prohibido recuperar viejos)
-            self.y_desired[:] = 0.0
+            self.y_desired[:] = (0.0, np.pi / 2)
             self.t = 0.0
             
             # Reset del generator (filtros, fase, etc.)
