@@ -832,16 +832,14 @@ class MainWindow(QMainWindow):
 
     def _update_pose_labels_tarea(self):
         a_deg = np.rad2deg(self.y_desired[0])
-        b_tilt_deg = np.rad2deg(self.y_desired[1])  # β̄ (tilt)
-        b_elev_deg = 90.0 - b_tilt_deg               # β (elevación desde horizonte)
+        b_elev_deg = np.rad2deg(self.y_desired[1])  # β (elevation from horizon)
+        b_tilt_deg = 90.0 - b_elev_deg               # β̄ (tilt)
         self.lbl_pose_alpha.setText(f"{a_deg:.1f} °")
         self.lbl_pose_beta_tilt.setText(f"{b_tilt_deg:.1f} °")
         self.lbl_pose_beta_elev.setText(f"{b_elev_deg:.1f} °")
 
         self.lbl_track_alpha.setText(f"{a_deg:.1f} °")
-        self.lbl_track_beta.setText(f"{b_tilt_deg:.1f} °")
-        phase = getattr(self.traj_gen, "phase", "-") if hasattr(self, "traj_gen") else "-"
-        self.lbl_track_phase.setText(str(phase).upper())
+        self.lbl_track_beta.setText(f"{b_elev_deg:.1f} °")  # Show elevation, not tilt
 
     def _update_pose_labels_cartesian(self, x, y, z, roll_deg, pitch_deg, yaw_deg):
         # x, y, z están en mm (desde los spinboxes)
@@ -853,7 +851,7 @@ class MainWindow(QMainWindow):
         self.lbl_pose_yaw.setText(f"{yaw_deg:.1f} °")
 
     def _seed_home_display(self):
-        """Inicializa displays en HOME: 0% (retraído, cenit), sin IK."""
+        """Inicializa displays en HOME: 0% (retraído, cenit), sin IK. Loguea PIK."""
         home = np.zeros(6, dtype=float)  # 0% = ACTUATOR_MIN (retraído)
         self.q_percent = home
         self.last_percent = home
@@ -863,6 +861,19 @@ class MainWindow(QMainWindow):
         self._update_pose_labels_cartesian(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         # Dibujar 3D en HOME (sin IK)
         self.platform_canvas.update_platform_at_home()
+        
+        # Inicializar rótulo de fase
+        self.lbl_track_phase.setText("HOME")
+        
+        # Loguea HOME con PIK calculado
+        try:
+            q_geom_home = PIK(D, np.eye(3), Az=Az, Bz=Bz)
+            pct_home = length_to_percent(q_geom_home)
+            q_geom_str = ", ".join([f"{q:.2f}" for q in q_geom_home])
+            pct_str = ", ".join([f"{p:.1f}" for p in pct_home])
+            self.log_event(f"HOME: PIK(D,I) = [{q_geom_str}] mm  pct = [{pct_str}]%")
+        except Exception as e:
+            self.log_event(f"HOME: PIK error: {e}")
 
     def update_loop(self):
         """Se ejecuta cada tick del timer GUI (20-50 ms)."""
@@ -871,6 +882,7 @@ class MainWindow(QMainWindow):
         # Handle HOMING state separately
         if self.state == "HOMING":
             self._homing_tick()
+            self.lbl_track_phase.setText("HOMING")
             return
 
         if self.op_mode == "JOG":
@@ -880,8 +892,14 @@ class MainWindow(QMainWindow):
                 self._manual_tarea_tick()
             else:
                 self._manual_cartesian_tick()
+            # Update phase label to show we're in JOG mode
+            self.lbl_track_phase.setText("JOG")
         else:
             self._auto_tick()
+            # _auto_tick() updates lbl_track_phase based on phase map
+            # If not running, update to HOME state
+            if not self.running:
+                self.lbl_track_phase.setText("HOME")
 
     def _homing_tick(self):
         """HOMING state: waiting for q to reach 0 (simulated: immediate)."""
@@ -1031,6 +1049,7 @@ class MainWindow(QMainWindow):
         # 6. Cambiar a HOMING state, en_home=False
         self.state = "HOMING"
         self.en_home = False
+        self.lbl_track_phase.setText("HOMING")
         
         # 7. Iniciar loop de HOMING
         self.timer.start()

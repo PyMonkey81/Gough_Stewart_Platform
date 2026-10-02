@@ -64,10 +64,12 @@ class TrajectoryGenerator:
 
     def set_tracking_points(self, points: list):
         """
-        points: lista de 3 pares [[α1, β1], [α2, β2], [α3, β3]] donde β es elevación desde horizonte
+        points: lista de 3 pares [[α1, β1], [α2, β2], [α3, β3]] en radianes
+        
+        β es la elevación desde horizonte (LMT: 10.10, 45.60, 10.00), NO es tilt.
+        Se construye el spline directamente con los valores sin conversión.
         
         Se construye un spline en el intervalo [t_home_end, t_tracking_end]
-        Convierte β (elevación de estación) → β̄ (tilt) = 90° − β antes de crear el spline
         """
         points = np.asarray(points, dtype=float)
         if points.shape != (3, 2):
@@ -84,12 +86,10 @@ class TrajectoryGenerator:
         ])
 
         alpha = points[:, 0]  # already in radians
-        beta_elev_rad = points[:, 1]  # already in radians (elevation from horizon)
-        # Convertir β (elevación desde horizonte) → β̄ (tilt) = π/2 − β_elev
-        beta_tilt_rad = np.pi/2 - beta_elev_rad
+        beta_rad = points[:, 1]  # already in radians (elevation from horizon, NOT tilt)
 
         self.spline_a = CubicSpline(times, alpha, bc_type='natural')
-        self.spline_b = CubicSpline(times, beta_tilt_rad,  bc_type='natural')
+        self.spline_b = CubicSpline(times, beta_rad,  bc_type='natural')
 
         # Punto al que debe llegar la fase Home
         self.y_start_a = float(self.spline_a(t0))
