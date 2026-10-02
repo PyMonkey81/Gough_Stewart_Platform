@@ -19,12 +19,12 @@ from gui.dialog.parameterdiag import ParametersDialog, load_parameters
 from gui.dialog.axisconfigdialog import AxisConfigDialog
 from connection.serial_manager import SerialManager
 
-from kinematics.inverse import inverse_kinematics
+from kinematics.inverse import inverse_kinematics, PIK
 from kinematics.pose import pose_to_q
 from config.parameters import (
     D, ACTUATOR_MIN, ACTUATOR_MAX, ACTUATOR_HOME_PERCENT,
     ALPHA_BETA_LIMIT_DEG, CARTESIAN_LIMITS, CARTESIAN_STEP,
-    APPROACH_S, RETURN_S
+    APPROACH_S, RETURN_S, OFFSET_ACTUADOR, STROKE, Az, Bz
 )
 from trajectory.generator import TrajectoryConfig, TrajectoryGenerator
 
@@ -41,7 +41,7 @@ AXIS_COLORS = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7", "#dfe6e9"]
 
 
 def length_to_percent(q: np.ndarray) -> np.ndarray:
-    """Mapea longitudes de actuador (m) a porcentaje de carrera 0-100%."""
+    """Mapea longitudes de actuador (mm) a porcentaje de carrera 0-100%."""
     percent = (q - ACTUATOR_MIN) / (ACTUATOR_MAX - ACTUATOR_MIN) * 100.0
     return np.clip(percent, 0, 100)
 
@@ -610,11 +610,11 @@ class MainWindow(QMainWindow):
         ang_step = CARTESIAN_STEP["angular"]
 
         self.slider_x, self.spin_x = self._linked_control(
-            -CARTESIAN_LIMITS["x"], CARTESIAN_LIMITS["x"], lin_step, 4, " m")
+            -CARTESIAN_LIMITS["x"], CARTESIAN_LIMITS["x"], lin_step, 1, " mm")
         self.slider_y, self.spin_y = self._linked_control(
-            -CARTESIAN_LIMITS["y"], CARTESIAN_LIMITS["y"], lin_step, 4, " m")
+            -CARTESIAN_LIMITS["y"], CARTESIAN_LIMITS["y"], lin_step, 1, " mm")
         self.slider_z, self.spin_z = self._linked_control(
-            -CARTESIAN_LIMITS["z"], CARTESIAN_LIMITS["z"], lin_step, 4, " m")
+            -CARTESIAN_LIMITS["z"], CARTESIAN_LIMITS["z"], lin_step, 1, " mm")
         self.slider_roll, self.spin_roll = self._linked_control(
             -CARTESIAN_LIMITS["roll"], CARTESIAN_LIMITS["roll"], ang_step, 2, " °")
         self.slider_pitch, self.spin_pitch = self._linked_control(
@@ -838,9 +838,10 @@ class MainWindow(QMainWindow):
         self.lbl_track_phase.setText(str(phase).upper())
 
     def _update_pose_labels_cartesian(self, x, y, z, roll_deg, pitch_deg, yaw_deg):
-        self.lbl_pose_x.setText(f"{x * 1000:.1f} mm")
-        self.lbl_pose_y.setText(f"{y * 1000:.1f} mm")
-        self.lbl_pose_z.setText(f"{z * 1000:.1f} mm")
+        # x, y, z están en mm (desde los spinboxes)
+        self.lbl_pose_x.setText(f"{x:.1f} mm")
+        self.lbl_pose_y.setText(f"{y:.1f} mm")
+        self.lbl_pose_z.setText(f"{z:.1f} mm")
         self.lbl_pose_roll.setText(f"{roll_deg:.1f} °")
         self.lbl_pose_pitch.setText(f"{pitch_deg:.1f} °")
         self.lbl_pose_yaw.setText(f"{yaw_deg:.1f} °")
@@ -1179,6 +1180,15 @@ class MainWindow(QMainWindow):
         traj_points_rad = [[np.deg2rad(float(a)), np.deg2rad(float(b))] for a, b in params["TRAJ_POINTS"]]
         self.traj_gen.set_tracking_points(traj_points_rad)
         self.log_event("Parámetros actualizados")
+        
+        # Log HOME kinematics: q_geom = PIK(D, I), q_percent based on q_actuator
+        q_geom_home = PIK(D, np.eye(3), Az=Az, Bz=Bz)
+        q_actuator_home = q_geom_home - OFFSET_ACTUADOR
+        pct_home = length_to_percent(q_actuator_home)
+        
+        q_geom_str = ", ".join([f"{q:.2f}" for q in q_geom_home])
+        pct_str = ", ".join([f"{p:.1f}" for p in pct_home])
+        self.log_event(f"HOME: PIK(D,I) = [{q_geom_str}] mm  pct = [{pct_str}]%")
 
     def log_event(self, text: str):
         stamp = time.strftime("%H:%M:%S")

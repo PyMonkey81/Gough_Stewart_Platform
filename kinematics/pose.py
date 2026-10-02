@@ -31,11 +31,13 @@ def rpy_to_R(roll: float, pitch: float, yaw: float) -> np.ndarray:
 
 
 def pose_to_q(x: float, y: float, z: float, roll: float, pitch: float, yaw: float):
-    """Pose cartesiana (m, rad) -> longitudes de actuador, vía PIK (sin reinventar cinemática).
+    """Pose cartesiana (mm, rad) -> longitudes de actuador en mm, vía PIK.
 
     da = D + [x, y, z]   (mismo convenio de traslación que usa TIK: origen de plataforma
                           respecto a la base, desplazado por D)
     R  = rpy_to_R(roll, pitch, yaw)
+    
+    Returns: q_actuator (mm), da (mm), R (3x3)
     """
     da = D + np.array([x, y, z])
     R = rpy_to_R(roll, pitch, yaw)

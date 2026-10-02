@@ -3,43 +3,43 @@ import numpy as np
 
 # config/parameters.py
 
-# Longitud de referencia (home) del modelo
-OFFSET_ACTUADOR = 1.4895          # valor actual que tienes
+# Longitud de referencia (home) del prototipo L16-100
+OFFSET_ACTUADOR = 247.41          # ||A-B|| medido en HOME (cenit, patas retraídas), mm
 
-# Carrera real del Actuonix LP16
-STROKE = 0.100                    # 100 mm = 0.1 m
+# Carrera real del Actuonix L16-100
+STROKE = 100.0                    # 100 mm
 
-# Rango físico completo
-ACTUATOR_MIN = OFFSET_ACTUADOR - (STROKE / 2)   # ≈ 1.4395 m
-ACTUATOR_MAX = OFFSET_ACTUADOR + (STROKE / 2)   # ≈ 1.5395 m
+# Rango físico completo: HOME es 0% (todo retraído)
+ACTUATOR_MIN = 247.41             # 0% retraído
+ACTUATOR_MAX = 347.41             # 100% = min + carrera
+ACTUATOR_HOME_PERCENT = 0         # HOME = 0% (retraído, cenit)
 
-ACTUATOR_HOME_PERCENT = 0  # HOME = 0% (retraído, cenit)
 
-
-# ====================== Geometría (escala 1:1 actual) ======================
+# ====================== Geometría (escala prototipo, mm) ======================
+# Az: puntos de anclaje en marco plataforma (origen = centro del agujero)
+# Bz: puntos de anclaje en marco base (fijo)
 Az = np.array([
-    [ 0.19087453,  0.23866804, -0.35236387],
-    [ 0.11125532,  0.28463621, -0.35236387],
-    [-0.30212985,  0.04596817, -0.35236387],
-    [-0.30212985, -0.04596817, -0.35236387],
-    [ 0.11125532, -0.28463621, -0.35236387],
-    [ 0.19087453, -0.23866804, -0.35236387]
-])
+    [ 46.95, -39.63, -44.33],
+    [ 10.84, -60.48, -44.33],
+    [-57.79, -20.85, -44.33],
+    [-57.79,  20.85, -44.33],
+    [ 10.84,  60.48, -44.33],
+    [ 46.95,  39.63, -44.33],
+])  # mm
 
 Bz = np.array([
-    [ 0.62321826,  0.09836858,  0.35695029],
-    [-0.22641944,  0.58890714,  0.35695029],
-    [-0.39679882,  0.49053856,  0.35695029],
-    [-0.39679882, -0.49053856,  0.35695029],
-    [-0.22641944, -0.58890714,  0.35695029],
-    [ 0.62321826, -0.09836858,  0.35695029]
-])
+    [ 87.79, -20.85, 44.32],
+    [-25.84, -86.46, 44.32],
+    [-61.95, -65.61, 44.32],
+    [-61.95,  65.61, 44.32],
+    [-25.84,  86.46, 44.32],
+    [ 87.79,  20.85, 44.32],
+])  # mm
 
-# ====================== Parámetros de la plataforma ======================
+# ====================== Parámetros de la plataforma (en mm) ======================
 ALPHA_0 = 0.0
-D = np.array([0.0, 0.0, 2.1])
-RT = 0.9                    # ← pon el valor real de rt
-OFFSET_ACTUADOR = 1.4895    # medido de SolidWorks (cambiará en el prototipo)
+D = np.array([0.0, 0.0, 331.94])  # Centro del agujero, mm
+RT = 0.0                           # Prototipo: RT solo usada para antena (no aplica aquí)
 
 # ====================== Controlador ======================
 ALPHA_PI = 150.0
@@ -60,16 +60,15 @@ RETURN_S = 3.0      # Tiempo para interpolar del último waypoint a q=0
 DEMO_DURATION = 60.0
 
 # ====================== Modo CARTESIANO (MOTION CONTROL) ======================
-# Límites de los sliders cartesianos, elegidos para que quepan dentro del
-# rango físico [ACTUATOR_MIN, ACTUATOR_MAX] en la mayoría de orientaciones.
+# Límites de los sliders cartesianos, en mm y grados
 ALPHA_BETA_LIMIT_DEG = 90.0
 
 CARTESIAN_LIMITS = {
-    "x": 0.05, "y": 0.05, "z": 0.05,            # m
-    "roll": 15.0, "pitch": 15.0, "yaw": 15.0,   # deg
+    "x": 30.0, "y": 30.0, "z": 40.0,            # mm (alrededor de 331.94 ± 40)
+    "roll": 15.0, "pitch": 15.0, "yaw": 20.0,   # deg
 }
 
 CARTESIAN_STEP = {
-    "linear": 0.001,   # m
+    "linear": 1.0,     # mm
     "angular": 0.5,    # deg
 }

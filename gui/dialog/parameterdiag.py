@@ -16,12 +16,12 @@ import numpy as np
 SETTINGS_PATH = Path(__file__).resolve().parents[2] / "config" / "parameters.json"
 
 DEFAULT_PARAMETERS = {
-    "OFFSET_ACTUADOR": 1.4895,
-    "STROKE": 0.100,
-    "ACTUATOR_HOME_PERCENT": 50.0,
+    "OFFSET_ACTUADOR": 247.41,
+    "STROKE": 100.0,
+    "ACTUATOR_HOME_PERCENT": 0.0,
     "ALPHA_0": 0.0,
-    "D": [0.0, 0.0, 2.1],
-    "RT": 0.9,
+    "D": [0.0, 0.0, 331.94],
+    "RT": 0.0,
     "ALPHA_PI": 150.0,
     "KP_S": 15000.0,
     "KI_S": 300.0,
@@ -36,20 +36,20 @@ DEFAULT_PARAMETERS = {
         [0.0, 0.0]
     ],
     "Az": [
-        [0.19087453, 0.23866804, -0.35236387],
-        [0.11125532, 0.28463621, -0.35236387],
-        [-0.30212985, 0.04596817, -0.35236387],
-        [-0.30212985, -0.04596817, -0.35236387],
-        [0.11125532, -0.28463621, -0.35236387],
-        [0.19087453, -0.23866804, -0.35236387]
+        [46.95, -39.63, -44.33],
+        [10.84, -60.48, -44.33],
+        [-57.79, -20.85, -44.33],
+        [-57.79, 20.85, -44.33],
+        [10.84, 60.48, -44.33],
+        [46.95, 39.63, -44.33]
     ],
     "Bz": [
-        [0.62321826, 0.09836858, 0.35695029],
-        [-0.22641944, 0.58890714, 0.35695029],
-        [-0.39679882, 0.49053856, 0.35695029],
-        [-0.39679882, -0.49053856, 0.35695029],
-        [-0.22641944, -0.58890714, 0.35695029],
-        [0.62321826, -0.09836858, 0.35695029]
+        [87.79, -20.85, 44.32],
+        [-25.84, -86.46, 44.32],
+        [-61.95, -65.61, 44.32],
+        [-61.95, 65.61, 44.32],
+        [-25.84, 86.46, 44.32],
+        [87.79, 20.85, 44.32]
     ]
 }
 
@@ -108,9 +108,9 @@ class MatrixTableWidget(QTableWidget):
         for row in range(self.ROWS):
             for col in range(self.COLS):
                 spin = QDoubleSpinBox()
-                spin.setRange(-5.0, 5.0)
-                spin.setDecimals(8)
-                spin.setSingleStep(0.0001)
+                spin.setRange(-300.0, 300.0)  # mm range for geometry
+                spin.setDecimals(2)
+                spin.setSingleStep(0.1)
                 spin.setStyleSheet("background-color: #2d2d2d; color: #e0e0e0; border: none;")
                 spin.installEventFilter(self)
                 self.setCellWidget(row, col, spin)
@@ -264,12 +264,12 @@ class ParametersDialog(QDialog):
         gb_act = QGroupBox("Actuadores (L16)")
         form_act = QFormLayout(gb_act)
 
-        self.sp_offset = self._spin(1.0, 2.0, 4, 0.0001)
-        self.sp_stroke = self._spin(0.01, 0.30, 3, 0.001)
-        self.sp_home_pct = self._spin(0, 100, 1, 1)
+        self.sp_offset = self._spin(100, 400, 2, 0.1)  # mm
+        self.sp_stroke = self._spin(10, 150, 1, 0.5)   # mm
+        self.sp_home_pct = self._spin(0, 100, 1, 1)    # %
 
-        form_act.addRow("OFFSET_ACTUADOR (m):", self.sp_offset)
-        form_act.addRow("STROKE (m):", self.sp_stroke)
+        form_act.addRow("OFFSET_ACTUADOR (mm):", self.sp_offset)
+        form_act.addRow("STROKE (mm):", self.sp_stroke)
         form_act.addRow("HOME %:", self.sp_home_pct)
 
         self.lbl_min_max = QLabel("")
@@ -286,17 +286,17 @@ class ParametersDialog(QDialog):
         form_geo = QFormLayout(gb_geo)
 
         self.sp_alpha0 = self._spin(-1.0, 1.0, 4, 0.001)
-        self.sp_rt = self._spin(0.1, 2.0, 3, 0.01)
+        self.sp_rt = self._spin(-10.0, 10.0, 2, 0.1)  # mm
 
-        self.sp_dx = self._spin(-1.0, 1.0, 4, 0.001)
-        self.sp_dy = self._spin(-1.0, 1.0, 4, 0.001)
-        self.sp_dz = self._spin(0.5, 4.0, 3, 0.01)
+        self.sp_dx = self._spin(-100.0, 100.0, 2, 0.1)   # mm
+        self.sp_dy = self._spin(-100.0, 100.0, 2, 0.1)   # mm
+        self.sp_dz = self._spin(0.0, 1000.0, 2, 1.0)     # mm
 
         form_geo.addRow("ALPHA_0 (rad):", self.sp_alpha0)
-        form_geo.addRow("RT:", self.sp_rt)
-        form_geo.addRow("D.x:", self.sp_dx)
-        form_geo.addRow("D.y:", self.sp_dy)
-        form_geo.addRow("D.z:", self.sp_dz)
+        form_geo.addRow("RT (mm):", self.sp_rt)
+        form_geo.addRow("D.x (mm):", self.sp_dx)
+        form_geo.addRow("D.y (mm):", self.sp_dy)
+        form_geo.addRow("D.z (mm):", self.sp_dz)
 
         tab1_layout.addWidget(gb_geo)
 
@@ -435,9 +435,9 @@ class ParametersDialog(QDialog):
     def _update_min_max(self):
         offset = self.sp_offset.value()
         stroke = self.sp_stroke.value()
-        amin = offset - stroke / 2
-        amax = offset + stroke / 2
-        self.lbl_min_max.setText(f"MIN = {amin:.4f} m    |    MAX = {amax:.4f} m")
+        amin = offset  # ACTUATOR_MIN = OFFSET (0% retraído)
+        amax = offset + stroke  # ACTUATOR_MAX = OFFSET + STROKE (100% extendido)
+        self.lbl_min_max.setText(f"MIN = {amin:.2f} mm    |    MAX = {amax:.2f} mm")
 
     def _load_values(self):
         p = self.defaults
@@ -484,8 +484,8 @@ class ParametersDialog(QDialog):
             "OFFSET_ACTUADOR": self.sp_offset.value(),
             "STROKE": self.sp_stroke.value(),
             "ACTUATOR_HOME_PERCENT": self.sp_home_pct.value(),
-            "ACTUATOR_MIN": self.sp_offset.value() - self.sp_stroke.value() / 2,
-            "ACTUATOR_MAX": self.sp_offset.value() + self.sp_stroke.value() / 2,
+            "ACTUATOR_MIN": self.sp_offset.value(),
+            "ACTUATOR_MAX": self.sp_offset.value() + self.sp_stroke.value(),
             "ALPHA_0": self.sp_alpha0.value(),
             "RT": self.sp_rt.value(),
             "D": [self.sp_dx.value(), self.sp_dy.value(), self.sp_dz.value()],
