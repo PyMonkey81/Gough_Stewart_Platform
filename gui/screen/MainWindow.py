@@ -41,8 +41,13 @@ AXIS_COLORS = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7", "#dfe6e9"]
 
 
 def length_to_percent(q: np.ndarray) -> np.ndarray:
-    """Mapea longitudes de actuador (mm) a porcentaje de carrera 0-100%."""
-    percent = (q - ACTUATOR_MIN) / (ACTUATOR_MAX - ACTUATOR_MIN) * 100.0
+    """Extensión del actuador (mm, 0 en HOME retraído) a porcentaje de carrera.
+
+    inverse_kinematics y pose_to_q ya restan OFFSET_ACTUADOR. No volver a
+    restar ACTUATOR_MIN: eso dejaba las barras en 0 % en cuanto la plataforma
+    salía de cenit.
+    """
+    percent = np.asarray(q, dtype=float) / STROKE * 100.0
     return np.clip(percent, 0, 100)
 
 
@@ -794,7 +799,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error de Cinemática", str(e))
             return
 
-        in_range = (q_actuator >= ACTUATOR_MIN - 1e-6) & (q_actuator <= ACTUATOR_MAX + 1e-6)
+        in_range = (q_actuator >= -1e-6) & (q_actuator <= STROKE + 1e-6)
         percent = length_to_percent(q_actuator)
 
         self.q_actuator = q_actuator
@@ -868,7 +873,7 @@ class MainWindow(QMainWindow):
         # Loguea HOME con PIK calculado
         try:
             q_geom_home = PIK(D, np.eye(3), Az=Az, Bz=Bz)
-            pct_home = length_to_percent(q_geom_home)
+            pct_home = length_to_percent(q_geom_home - OFFSET_ACTUADOR)
             q_geom_str = ", ".join([f"{q:.2f}" for q in q_geom_home])
             pct_str = ", ".join([f"{p:.1f}" for p in pct_home])
             self.log_event(f"HOME: PIK(D,I) = [{q_geom_str}] mm  pct = [{pct_str}]%")
