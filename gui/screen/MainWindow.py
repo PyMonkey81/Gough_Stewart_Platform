@@ -968,7 +968,7 @@ class MainWindow(QMainWindow):
         
         # Normal tracking: get reference from generator
         try:
-            y_des, yp_des = self.traj_gen.step(self.t)
+            y_des, yp_des = self.traj_gen.step(self.t, dt=self.dt)
             self.y_desired = y_des
             
             # Update phase label: map generator phases to user-friendly names
