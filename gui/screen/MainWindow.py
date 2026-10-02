@@ -88,8 +88,9 @@ class MainWindow(QMainWindow):
         self.da = D.copy()
         self.R = np.eye(3)
         
-        # Button state machine (IDLE_HOME, JOG, APPROACH, TRACK, RETURN, HOLD)
-        self.en_home = True             # En HOME (cenit, q=0)
+        # State machine (formal states: HOMING, HOME, JOG, APPROACH, TRACK, RETURN, HOLD)
+        self.state = "HOME"             # Estado actual
+        self.en_home = True             # En HOME (cenit, q=0), listo para secuencia
         self.demo_active = False        # Hay trayectoria demo cargada
         self.hold_state = None          # Qué estado guardar al pausar (HOLD)
         
@@ -867,6 +868,11 @@ class MainWindow(QMainWindow):
         """Se ejecuta cada tick del timer GUI (20-50 ms)."""
         self.t += self.dt
 
+        # Handle HOMING state separately
+        if self.state == "HOMING":
+            self._homing_tick()
+            return
+
         if self.op_mode == "JOG":
             if self.axis_dialog.isVisible():
                 self._manual_axis_tick()
@@ -877,8 +883,35 @@ class MainWindow(QMainWindow):
         else:
             self._auto_tick()
 
+    def _homing_tick(self):
+        """HOMING state: waiting for q to reach 0 (simulated: immediate)."""
+        # Set q_percent to 0 (retracted)
+        self.q_percent[:] = 0.0
+        self.last_percent[:] = 0.0
+        
+        # Update displays
+        self.actuator_canvas.update_data(self.t, np.zeros(6))
+        self.update_actuator_status(np.zeros(6))
+        self.platform_canvas.update_platform_at_home()
+        self._update_pose_labels_tarea()
+        
+        # Send home command via serial
+        if self.serial_manager.is_connected:
+            self.serial_manager.send_raw("home")
+        
+        # In simulation, detect home immediately (all q_percent = 0)
+        # Check if all actuators at 0% (within tolerance)
+        if np.allclose(self.q_percent, 0.0, atol=1.0):
+            # Transition to HOME state
+            self.state = "HOME"
+            self.en_home = True
+            self.timer.stop()
+            self.running = False
+            self.log_event("HOME listo")
+            self.update_status_bar()
+
     def _auto_tick(self):
-        """AUTO sequence state machine: IDLE → APPROACH → TRACK → RETURN → HOME."""
+        """AUTO sequence state machine: APPROACH → TRACK → RETURN → HOME."""
         if not hasattr(self, "traj_gen"):
             return
         
@@ -894,6 +927,7 @@ class MainWindow(QMainWindow):
             if dt_elapsed >= APPROACH_S:
                 # Phase complete, transition to TRACK
                 self.auto_state = "track"
+                self.state = "TRACK"
                 self.auto_t_start = self.t
                 self.log_event("APPROACH → TRACK")
             else:
@@ -915,6 +949,7 @@ class MainWindow(QMainWindow):
             if self.t >= t_track_end:
                 # Phase complete, transition to RETURN
                 self.auto_state = "return"
+                self.state = "RETURN"
                 self.auto_t_start = self.t
                 self.log_event("TRACK → RETURN")
             else:
@@ -953,7 +988,7 @@ class MainWindow(QMainWindow):
                 self._maybe_send(q_interp)
         
         elif self.auto_state == "home_final":
-            # Final HOME: send "home", set q_pct=0, PARO
+            # Final HOME: transition to HOME state, set en_home=True
             self.q_percent[:] = 0.0
             self.last_percent[:] = 0.0
             self.actuator_canvas.update_data(self.t, np.zeros(6))
@@ -961,9 +996,17 @@ class MainWindow(QMainWindow):
             self.platform_canvas.update_platform_at_home()
             if self.serial_manager.is_connected:
                 self.serial_manager.send_raw("home")
-            ts = time.strftime("%H:%M:%S")
-            self.log_event(f"[{ts}] AUTO complete: HOME")
-            self.go_home()  # Ir a HOME, no solo pausar
+            
+            # Transition to HOME state and stop
+            self.state = "HOME"
+            self.en_home = True
+            self.running = False
+            self.timer.stop()
+            self.btn_start.setEnabled(True)
+            
+            # Log sequence complete
+            self.log_event("RETURN → HOME (secuencia completada)")
+            self.update_status_bar()
 
     def _manual_tarea_tick(self):
         a_rad = np.deg2rad(self.spin_alpha.value())
@@ -987,13 +1030,12 @@ class MainWindow(QMainWindow):
     # Controles de UI
     # ------------------------------------------------------------------
     def go_home(self):
-        """HOME = ejes retraídos (0%), TAREA α=0° β̄=0° (cenit), sin IK, sin trayectoria."""
+        """HOME button: Stop sequence, enter HOMING state, en_home=False until q=0."""
         # 1. Parar el lazo de control
         self.running = False
         self.timer.stop()
-        self.btn_start.setEnabled(True)
         
-        # 2. Limpiar estado de trayectoria
+        # 2. Limpiar estado de trayectoria y filtros
         self.demo_active = False
         self.hold_state = None
         self.auto_state = "idle"
@@ -1011,34 +1053,25 @@ class MainWindow(QMainWindow):
         self.spin_yaw.setValue(0.0)
         self.y_desired[:] = 0.0
         
-        # 4. Poner q_percent a 0% (retraído) directamente sin IK
-        self.q_percent[:] = 0.0
-        self.last_percent[:] = 0.0
-        
-        # 5. Reset de TrajectoryGenerator (filtros, fase, tiempo)
+        # 4. Reset de TrajectoryGenerator (filtros, fase, tiempo)
         if hasattr(self, "traj_gen"):
             self.traj_gen.reset()
             self.t = 0.0
         self.actuator_canvas.clear()
         
-        # 6. Actualizar displays (3D, barras, gráfica) - HOME SIN IK
-        self.actuator_canvas.update_data(0.0, self.q_percent)
-        self.update_actuator_status(self.q_percent)
-        self._update_pose_labels_tarea()  # α=0°, β̄=0°, elev.β=90°
-        self._update_pose_labels_cartesian(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        self.platform_canvas.update_platform_at_home()  # Dibuja 3D sin IK
-        
-        # 7. Marcar en_home = True
-        self.en_home = True
-        
-        # 8. Enviar comando HOME por serial
+        # 5. Limpiar canvas
         self.axis_dialog.reset_all_home()
         self._clear_oor_state()
-        if self.serial_manager.is_connected:
-            self.serial_manager.send_raw("home")
         
-        # 9. Log
-        self.log_event("HOME cenit")
+        # 6. Cambiar a HOMING state, en_home=False
+        self.state = "HOMING"
+        self.en_home = False
+        
+        # 7. Iniciar loop de HOMING
+        self.timer.start()
+        self.running = True
+        self.btn_start.setEnabled(False)
+        self.log_event("HOME: iniciando HOMING")
         self.update_status_bar()
 
     def open_serial_config(self):
@@ -1136,6 +1169,11 @@ class MainWindow(QMainWindow):
 
     def tracking_demo(self):
         """Cargar demo de trayectoria desde TRAJ_POINTS: reset de t y filtros."""
+        # Check if we're in HOME state
+        if not self.en_home:
+            self.log_event("lleva a HOME antes de la secuencia")
+            return
+        
         if not hasattr(self, "traj_gen"):
             self.log_event("ERROR: TrajectoryGenerator no inicializado")
             return
@@ -1148,13 +1186,13 @@ class MainWindow(QMainWindow):
             self.log_event(f"ERROR cargando TRAJ_POINTS: {e}")
             return
         
-        # Reset de tiempo y filtros
+        # Reset de tiempo y filtros (limpia estado previo)
         self.t = 0.0
         self.traj_gen.reset()
+        self.y_desired[:] = 0.0
         
-        # Marcar que hay demo activa y NO estamos en HOME
+        # Marcar que hay demo activa
         self.demo_active = True
-        self.en_home = False
         self.hold_state = None
         
         self.log_event("Tracking demo cargado (TRAJ_POINTS)")
@@ -1164,52 +1202,59 @@ class MainWindow(QMainWindow):
 
     def start(self):
         """INICIAR: Lógica inteligente de máquina de estados."""
+        # Check if we're not in HOME state or HOMING
+        if not self.en_home or self.state == "HOMING":
+            self.log_event("lleva a HOME antes de la secuencia")
+            return
+        
         if self.running:
             return
         
-        # Si en_home y no hay trayectoria cargada, no hacer nada
-        if self.en_home and not self.demo_active:
-            self.log_event("HOME: no hay trayectoria")
-            return
-        
-        # Si estábamos en HOLD (pausa), reanudar ese estado
-        if self.hold_state is not None:
+        # Si estamos en HOLD (pausa), reanudar desde ahí
+        if self.state == "HOLD" and self.hold_state is not None:
             self.auto_state = self.hold_state
+            # Restaurar estado (APPROACH, TRACK, o RETURN)
+            if self.hold_state == "approach":
+                self.state = "APPROACH"
+            elif self.hold_state == "track":
+                self.state = "TRACK"
+            elif self.hold_state == "return":
+                self.state = "RETURN"
             self.log_event(f"Reanudando desde {self.hold_state.upper()}")
+        # Si hay demo_active, comenzar APPROACH
+        elif self.demo_active:
+            # Limpiar valores previos de y_desired (prohibido recuperar viejos)
+            self.y_desired[:] = 0.0
+            
+            # Empezar en APPROACH desde q=0
+            if hasattr(self, "traj_gen"):
+                try:
+                    # Calcular q_percent para primer y último waypoint
+                    y_first = np.array([self.traj_gen.y_start_a, self.traj_gen.y_start_b])
+                    q_first_actuator, _, _ = inverse_kinematics(y_first)
+                    self.auto_q_first = length_to_percent(q_first_actuator)
+                    
+                    # Último waypoint: evaluar spline en t_tracking_end
+                    t_end = self.traj_gen.cfg.t_tracking_end
+                    y_last_a = float(self.traj_gen.spline_a(t_end))
+                    y_last_b = float(self.traj_gen.spline_b(t_end))
+                    y_last = np.array([y_last_a, y_last_b])
+                    q_last_actuator, _, _ = inverse_kinematics(y_last)
+                    self.auto_q_last = length_to_percent(q_last_actuator)
+                    
+                    self.state = "APPROACH"
+                    self.auto_state = "approach"
+                    self.log_event("APPROACH → TRACK → RETURN → HOME")
+                except Exception as e:
+                    self.log_event(f"ERROR IK: {e}")
+                    return
         else:
-            # Si había demo_active, estamos comenzando APPROACH
-            if self.demo_active:
-                # Limpiar valores previos de y_desired (prohibido recuperar viejos)
-                self.y_desired[:] = 0.0
-                
-                # Empezar en APPROACH desde q=0
-                if hasattr(self, "traj_gen"):
-                    try:
-                        # Calcular q_percent para primer y último waypoint
-                        y_first = np.array([self.traj_gen.y_start_a, self.traj_gen.y_start_b])
-                        q_first_actuator, _, _ = inverse_kinematics(y_first)
-                        self.auto_q_first = length_to_percent(q_first_actuator)
-                        
-                        # Último waypoint: evaluar spline en t_tracking_end
-                        t_end = self.traj_gen.cfg.t_tracking_end
-                        y_last_a = float(self.traj_gen.spline_a(t_end))
-                        y_last_b = float(self.traj_gen.spline_b(t_end))
-                        y_last = np.array([y_last_a, y_last_b])
-                        q_last_actuator, _, _ = inverse_kinematics(y_last)
-                        self.auto_q_last = length_to_percent(q_last_actuator)
-                        
-                        self.auto_state = "approach"
-                        self.log_event("APPROACH → TRACK → RETURN → HOME")
-                    except Exception as e:
-                        self.log_event(f"ERROR IK: {e}")
-                        return
-            else:
-                # JOG mode, no AUTO
-                self.auto_state = "idle"
+            # JOG mode, no AUTO
+            self.state = "JOG"
+            self.auto_state = "idle"
         
         # Iniciar lazo de control
         self.running = True
-        self.en_home = False  # Ya no estamos en HOME si iniciamos
         self._last_send = -1.0
         self._oor_active = False
         self.actuator_canvas.clear()
@@ -1228,8 +1273,10 @@ class MainWindow(QMainWindow):
         self.running = False
         self.timer.stop()
         
-        # Guardar estado actual para poder reanudar
-        self.hold_state = self.auto_state
+        # Guardar estado actual para poder reanudar (solo si estamos en AUTO)
+        if self.state in ["APPROACH", "TRACK", "RETURN"]:
+            self.hold_state = self.auto_state
+            self.state = "HOLD"
         
         self.btn_start.setEnabled(True)
         self.log_event("PARO (pausa, estado guardado)")
@@ -1278,7 +1325,7 @@ class MainWindow(QMainWindow):
             self.log_list.takeItem(0)
 
     def update_status_bar(self):
-        """Update header status indicators."""
+        """Update header status indicators and button states."""
         # LED status indicator
         if self.serial_manager.is_connected:
             self.led_status.setText("●")
@@ -1296,6 +1343,12 @@ class MainWindow(QMainWindow):
         else:
             self.lbl_port.setText("PORT: —")
             self.lbl_baud.setText("BAUD: —")
+        
+        # Disable INICIAR button if not en_home or HOMING
+        if not self.running and (not self.en_home or self.state == "HOMING"):
+            self.btn_start.setEnabled(False)
+        elif not self.running:
+            self.btn_start.setEnabled(True)
 
     def closeEvent(self, event):
         self.serial_manager.close()

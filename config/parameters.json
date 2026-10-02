@@ -12,9 +12,9 @@
   "ALPHA_PI": 150.0,
   "KP_S": 15000.0,
   "KI_S": 300.0,
-  "T_HOME_END": 5.0,
-  "T_TRACKING_END": 40.0,
-  "DEMO_DURATION": 600.0,
+  "T_HOME_END": 60.0,
+  "T_TRACKING_END": 490.0,
+  "DEMO_DURATION": 550.0,
   "DT": 0.001,
   "FILTER_WN": 3.4,
   "TRAJ_POINTS": [
