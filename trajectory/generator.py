@@ -147,7 +147,7 @@ class TrajectoryGenerator:
         # -------------------------------------------------
         # FASE 3: Retorno a home
         # -------------------------------------------------
-        elif t <= t_return_end:
+        elif t < t_return_end:
             if self.phase != "return":
                 self.filter_a.reset(x1=self.y_current[0], x2=self.yp_current[0])
                 self.filter_b.reset(x1=self.y_current[1], x2=self.yp_current[1])
