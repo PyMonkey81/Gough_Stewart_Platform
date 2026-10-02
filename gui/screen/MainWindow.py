@@ -80,6 +80,7 @@ class MainWindow(QMainWindow):
         self.motion_mode = "TAREA"       # "TAREA" | "CARTESIAN" (solo aplica en JOG)
         self.t = 0.0
         self.dt = 0.03
+        self._last_draw = 0.0  # For throttling 3D updates to 5 Hz
         self.demo_duration = 60.0
         self._oor_active = False         # guarda de "pose fuera de carrera" (cartesiano)
 
@@ -985,12 +986,16 @@ class MainWindow(QMainWindow):
             self.q_percent = length_to_percent(q_actuator)
             self.last_percent = self.q_percent
             
-            # Update displays
-            self._update_pose_labels_tarea()  # Shows α, β from generator
-            self.platform_canvas.update_platform(self.da, self.R)
-            self.actuator_canvas.update_data(self.t, self.q_percent)
+            # Keep calculation and send on the critical path
             self.update_actuator_status(self.q_percent)
             self._maybe_send(self.q_percent)
+            
+            # Draw 3D at 5 Hz (every 0.2s) to avoid freezing the UI
+            if self.t - self._last_draw >= 0.2:
+                self._last_draw = self.t
+                self._update_pose_labels_tarea()
+                self.platform_canvas.update_platform(self.da, self.R)
+                self.actuator_canvas.update_data(self.t, self.q_percent)
             
         except Exception as e:
             self.log_event(f"ERROR IK (AUTO): {e}")
