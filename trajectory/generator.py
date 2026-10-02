@@ -173,6 +173,14 @@ class TrajectoryGenerator:
 
         return self.y_current.copy(), self.yp_current.copy()
 
+    def reset(self):
+        """Reset estado interno: filtros, fase, velocidades."""
+        self.filter_a.reset()
+        self.filter_b.reset()
+        self.phase = "home"
+        self.y_current = np.array([0.0, 0.0])
+        self.yp_current = np.array([0.0, 0.0])
+
     def generate(self, t_final: float = 800.0):
         """Genera toda la trayectoria offline (útil para plots)."""
         t = np.arange(0.0, t_final, self.cfg.dt)
