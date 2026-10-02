@@ -589,13 +589,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.slider_alpha)
         layout.addWidget(self.spin_alpha)
         
-        lbl_beta = QLabel("β̄ tilt (°)")
+        lbl_beta = QLabel("β elevación (°)")
         lbl_beta.setFont(label_font)
         lbl_beta.setMaximumHeight(22)
         lbl_beta.setToolTip(
-            "0° apunta al cenit (artículo 2022).\n"
-            "La elevación de estación es 90° − β̄.\n"
-            "β̄ = 0°: mira al cenit | β̄ = 90°: mira al horizonte"
+            "Elevación desde el horizonte.\n"
+            "0° mira al horizonte | 90° mira al cenit.\n"
+            "β = 10.10° / 45.60° / 10.00° (LMT tabla)"
         )
         layout.addWidget(lbl_beta)
         layout.addWidget(self.slider_beta)

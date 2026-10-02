@@ -377,16 +377,17 @@ class ParametersDialog(QDialog):
         tab3_layout.addWidget(gb_time)
 
         # Puntos del spline (3 pares α, β) en grados
-        gb_traj = QGroupBox("Puntos de trayectoria (α, β) en grados – Spline cúbico")
+        gb_traj = QGroupBox("Puntos de trayectoria (α, β elevación) en grados – Spline cúbico")
         traj_layout = QVBoxLayout(gb_traj)
 
-        note = QLabel("Define 3 puntos (α, β) en grados que se usarán para generar la trayectoria\n"
-                      "mediante el spline cúbico. Los valores se convierten internamente a radianes.")
+        note = QLabel("Define 3 puntos (α, β) donde β es elevación desde horizonte (LMT tabla).\n"
+                      "Punto 1: destino APPROACH | Punto 2: pico | Punto 3: inicio RETURN.\n"
+                      "Valores en grados, convertidos internamente a radianes.")
         note.setStyleSheet("color: #aaa; font-size: 12px;")
         traj_layout.addWidget(note)
 
         self.table_traj = QTableWidget(3, 2)
-        self.table_traj.setHorizontalHeaderLabels(["Alpha (°)", "Beta (°)"])
+        self.table_traj.setHorizontalHeaderLabels(["Alpha (°)", "Beta elevación (°)"])
         self.table_traj.verticalHeader().setVisible(True)
         self.table_traj.setVerticalHeaderLabels(["Punto 1", "Punto 2", "Punto 3"])
         self.table_traj.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
