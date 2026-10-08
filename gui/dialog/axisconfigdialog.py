@@ -80,12 +80,25 @@ class AxisConfigDialog(QDialog):
         check = QCheckBox("Habilitar")
         check.setChecked(False)
 
-        slider.valueChanged.connect(spin.setValue)
-        spin.valueChanged.connect(slider.setValue)
-        # Enviar al soltar el slider (no en cada cambio de valor)
-        slider.sliderReleased.connect(lambda _=None: self.axes_changed.emit())
-        # También enviar cuando cambies manualmente el spinbox
-        spin.valueChanged.connect(lambda _=None: self.axes_changed.emit())
+        # Sincronizar slider ↔ spinbox SIN emitir signal en cada cambio
+        def slider_to_spin(v):
+            spin.blockSignals(True)
+            spin.setValue(v)
+            spin.blockSignals(False)
+            self.axes_changed.emit()
+        
+        def spin_to_slider(v):
+            slider.blockSignals(True)
+            slider.setValue(v)
+            slider.blockSignals(False)
+            self.axes_changed.emit()
+
+        slider.valueChanged.connect(slider_to_spin)
+        spin.valueChanged.connect(spin_to_slider)
+        
+        # Enviar signal cuando se suelta el slider
+        slider.sliderReleased.connect(self.axes_changed.emit)
+        
         check.toggled.connect(lambda enabled, i=index: self._on_toggle(i, enabled))
 
         v.addWidget(slider, alignment=Qt.AlignHCenter)

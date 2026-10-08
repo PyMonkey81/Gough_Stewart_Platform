@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
         # ------------------ Estado ------------------
         self.running = False
         self.op_mode = "JOG"             # "JOG" | "TRACK"
-        self.motion_mode = "TAREA"       # "TAREA" | "CARTESIAN" (solo aplica en JOG)
+        self.motion_mode = "TAREA"       # "TAREA" | "CARTESIAN" | "AXIS" (solo aplica en JOG)
         self.t = 0.0
         self.dt = 0.03
         self._last_draw = 0.0  # For throttling 3D updates to 5 Hz
@@ -126,6 +126,7 @@ class MainWindow(QMainWindow):
         self.heartbeat_timer.timeout.connect(self.send_heartbeat)
 
         self._last_send = -1.0
+        self._last_axis_cmd = None  # Para loguear solo cuando cambia en AXIS mode
 
         self.setup_ui()
         self.on_parameters_changed(self.current_params)
@@ -895,14 +896,21 @@ class MainWindow(QMainWindow):
             return
 
         if self.op_mode == "JOG":
-            if self.axis_dialog.isVisible():
+            # Si motion_mode es AXIS, jog por eje independientemente de si está visible
+            if self.motion_mode == "AXIS":
                 self._manual_axis_tick()
+                self.lbl_track_phase.setText("JOG EJES")
+            elif self.axis_dialog.isVisible():
+                # Compatibilidad: si aún está abierto pero no es AXIS, pasar a AXIS
+                self.motion_mode = "AXIS"
+                self._manual_axis_tick()
+                self.lbl_track_phase.setText("JOG EJES")
             elif self.motion_mode == "TAREA":
                 self._manual_tarea_tick()
+                self.lbl_track_phase.setText("JOG")
             else:
                 self._manual_cartesian_tick()
-            # Update phase label to show we're in JOG mode
-            self.lbl_track_phase.setText("JOG")
+                self.lbl_track_phase.setText("JOG")
         else:
             self._auto_tick()
             # _auto_tick() updates lbl_track_phase based on phase map
@@ -1021,16 +1029,24 @@ class MainWindow(QMainWindow):
         self.last_percent = np.array(vector, dtype=float)
         self.actuator_canvas.update_data(self.t, vector)
         self.update_actuator_status(self.last_percent)
+        
+        # Log el comando de ejes si es la primera vez o si cambió
+        if not hasattr(self, '_last_axis_cmd') or self._last_axis_cmd != vector:
+            self.log_event("pos {}".format(','.join(str(int(round(v))) for v in vector)))
+            self._last_axis_cmd = vector
+        
         self._maybe_send(vector)
         self.update_status_bar()
 
     def _on_axis_dialog_changed(self):
         """Signal handler: cuando cambia un slider/spinbox en el diálogo de ejes, envía inmediatamente."""
-        if self.axis_dialog.isVisible() and self.serial_manager.is_connected:
+        if self.axis_dialog.isVisible():
             vector = self.axis_dialog.get_command_vector()
-            # Envía inmediatamente sin esperar al rate-limit (pero respeta 100ms si es posible)
-            self.serial_manager.send_positions([int(round(v)) for v in vector])
-            self.log_event(f"pos {','.join(str(int(round(v))) for v in vector)}")
+            # Envía al serial si está conectado
+            if self.serial_manager.is_connected:
+                self.serial_manager.send_positions([int(round(v)) for v in vector])
+            # Siempre loguea para debugging
+            self.log_event("pos {}".format(','.join(str(int(round(v))) for v in vector)))
 
     # ------------------------------------------------------------------
     # Controles de UI
@@ -1227,7 +1243,12 @@ class MainWindow(QMainWindow):
                 self.state = "TRACK"
             elif self.hold_state == "return":
                 self.state = "RETURN"
-            self.log_event(f"Reanudando desde {self.hold_state.upper()}")
+            self.log_event("Reanudando desde {}".format(self.hold_state.upper()))
+        # Si el diálogo de ejes está visible, mantenerse en jog por eje
+        elif self.axis_dialog.isVisible():
+            self.state = "JOG"
+            self.motion_mode = "AXIS"  # Modo especial: jog por eje
+            self.log_event("JOG POR EJE (diálogo visible)")
         # Si hay demo_active, comenzar la secuencia desde t=0
         elif self.demo_active:
             # Limpiar valores previos de y_desired (prohibido recuperar viejos)
@@ -1242,6 +1263,7 @@ class MainWindow(QMainWindow):
         else:
             # JOG mode, no AUTO
             self.state = "JOG"
+            self.motion_mode = "TAREA"  # Modo normal: TAREA
             self.auto_state = "idle"
         
         # Iniciar lazo de control
