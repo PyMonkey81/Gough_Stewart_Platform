@@ -1,0 +1,78 @@
+diff --git a/trajectory/generator.py b/trajectory/generator.py
+--- a/trajectory/generator.py
++++ b/trajectory/generator.py
+@@ -24,14 +24,15 @@ class SecondOrderFilter:
+         self.x1 = x1
+         self.x2 = x2
+ 
+-    def step(self, ur: float) -> Tuple[float, float]:
++    def step(self, ur: float, dt: float = None) -> Tuple[float, float]:
++        h = self.dt if dt is None else dt
+         error1 = ur - self.x1
+         error2 = self.wn * error1 - 2.0 * self.x2
+         x2_dot = self.wn * error2
+         x1_dot = self.x2
+ 
+-        self.x2 += x2_dot * self.dt
+-        self.x1 += x1_dot * self.dt
++        self.x2 += x2_dot * h
++        self.x1 += x1_dot * h
+         return self.x1, self.x2
+ 
+ 
+@@ -95,7 +96,7 @@ class TrajectoryGenerator:
+         self.y_start_a = float(self.spline_a(t0))
+         self.y_start_b = float(self.spline_b(t0))
+ 
+-    def step(self, t: float) -> Tuple[np.ndarray, np.ndarray]:
++    def step(self, t: float, dt: float = None) -> Tuple[np.ndarray, np.ndarray]:
+         """
+         Genera la referencia en el instante t.
+ 
+@@ -123,8 +124,8 @@ class TrajectoryGenerator:
+             ur_a = self.y_start_a * progress
+             ur_b = (np.pi / 2) + (self.y_start_b - np.pi / 2) * progress
+ 
+-            ya, ypa = self.filter_a.step(ur_a)
+-            yb, ypb = self.filter_b.step(ur_b)
++            ya, ypa = self.filter_a.step(ur_a, dt)
++            yb, ypb = self.filter_b.step(ur_b, dt)
+ 
+             self.phase = "home"
+ 
+@@ -163,8 +164,8 @@ class TrajectoryGenerator:
+             target_a = self.y_current[0] * (1.0 - progress)
+             target_b = self.y_current[1] + (np.pi / 2 - self.y_current[1]) * progress
+ 
+-            ya, ypa = self.filter_a.step(target_a)
+-            yb, ypb = self.filter_b.step(target_b)
++            ya, ypa = self.filter_a.step(target_a, dt)
++            yb, ypb = self.filter_b.step(target_b, dt)
+ 
+         else:
+             ya, ypa = 0.0, 0.0
+@@ -177,9 +178,9 @@ class TrajectoryGenerator:
+         return self.y_current.copy(), self.yp_current.copy()
+ 
+     def reset(self):
+-        """Reset estado interno: filtros, fase, velocidades."""
+-        self.filter_a.reset()
+-        self.filter_b.reset()
++        """Reset estado interno: filtros en cenit, no en el horizonte."""
++        self.filter_a.reset(0.0, 0.0)
++        self.filter_b.reset(np.pi / 2, 0.0)
+         self.phase = "home"
+         self.y_current = np.array([0.0, np.pi / 2])
+         self.yp_current = np.array([0.0, 0.0])
+diff --git a/gui/screen/MainWindow.py b/gui/screen/MainWindow.py
+--- a/gui/screen/MainWindow.py
++++ b/gui/screen/MainWindow.py
+@@ -968,7 +968,7 @@ class MainWindow(QMainWindow):
+         
+         # Normal tracking: get reference from generator
+         try:
+-            y_des, yp_des = self.traj_gen.step(self.t)
++            y_des, yp_des = self.traj_gen.step(self.t, dt=self.dt)
+             self.y_desired = y_des
+             
+             # Update phase label: map generator phases to user-friendly names

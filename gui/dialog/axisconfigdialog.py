@@ -82,6 +82,9 @@ class AxisConfigDialog(QDialog):
 
         slider.valueChanged.connect(spin.setValue)
         spin.valueChanged.connect(slider.setValue)
+        # Enviar al soltar el slider (no en cada cambio de valor)
+        slider.sliderReleased.connect(lambda _=None: self.axes_changed.emit())
+        # También enviar cuando cambies manualmente el spinbox
         spin.valueChanged.connect(lambda _=None: self.axes_changed.emit())
         check.toggled.connect(lambda enabled, i=index: self._on_toggle(i, enabled))
 
@@ -113,7 +116,7 @@ class AxisConfigDialog(QDialog):
         """Pone 50% solo en los ejes actualmente habilitados."""
         for i, c in enumerate(self.checks):
             if c.isChecked():
-                self.spins[i].setValue(int(ACTUATOR_HOME_PERCENT))
+                self.spins[i].setValue(50)
 
     def reset_all_home(self):
         """Fuerza los 6 ejes a home (50%), sin importar si están habilitados."""

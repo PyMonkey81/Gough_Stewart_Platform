@@ -113,6 +113,7 @@ class MainWindow(QMainWindow):
 
         # Diálogo de jog manual de ejes (no modal)
         self.axis_dialog = AxisConfigDialog(self)
+        self.axis_dialog.axes_changed.connect(self._on_axis_dialog_changed)
 
         # Serial
         self.serial_manager = SerialManager(self)
@@ -1022,6 +1023,14 @@ class MainWindow(QMainWindow):
         self.update_actuator_status(self.last_percent)
         self._maybe_send(vector)
         self.update_status_bar()
+
+    def _on_axis_dialog_changed(self):
+        """Signal handler: cuando cambia un slider/spinbox en el diálogo de ejes, envía inmediatamente."""
+        if self.axis_dialog.isVisible() and self.serial_manager.is_connected:
+            vector = self.axis_dialog.get_command_vector()
+            # Envía inmediatamente sin esperar al rate-limit (pero respeta 100ms si es posible)
+            self.serial_manager.send_positions([int(round(v)) for v in vector])
+            self.log_event(f"pos {','.join(str(int(round(v))) for v in vector)}")
 
     # ------------------------------------------------------------------
     # Controles de UI
