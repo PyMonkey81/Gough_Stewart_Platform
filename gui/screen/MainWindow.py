@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QPushButton, QLabel, QMessageBox, QGroupBox, QComboBox,
     QStackedWidget, QSlider, QDoubleSpinBox,
-    QProgressBar, QListWidget, QFrame, QSplitter
+    QProgressBar, QListWidget, QFrame, QSplitter, QCheckBox
 )
 from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtGui import QFont
@@ -127,6 +127,14 @@ class MainWindow(QMainWindow):
 
         self._last_send = -1.0
         self._last_axis_cmd = None  # Para loguear solo cuando cambia en AXIS mode
+        
+        # Throttling para logging de posiciones (cada 0.5s o cuando cambia > 2%)
+        self._last_log = -1.0
+        self._last_logged_percent = None
+        
+        # Throttling para gráfica de actuadores (cada 100ms, recorta a 60s)
+        self._last_actuator_plot = -1.0
+        self._show_3d = True  # Checkbox para ocultar 3D si es muy lento
 
         self.setup_ui()
         self.on_parameters_changed(self.current_params)
@@ -283,13 +291,26 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
-        # 3D Visualization (minimum 420x420)
-        gb_platform = QGroupBox("HEXÁPODO 3D")
-        gb_platform_layout = QVBoxLayout(gb_platform)
+        # 3D Visualization (minimum 420x420) with toggle checkbox
+        header_3d = QHBoxLayout()
+        lbl_3d = QLabel("HEXÁPODO 3D")
+        lbl_3d.setStyleSheet("font-weight: bold;")
+        header_3d.addWidget(lbl_3d)
+        header_3d.addStretch()
+        self.chk_show_3d = QCheckBox("Mostrar")
+        self.chk_show_3d.setChecked(True)
+        self.chk_show_3d.toggled.connect(self._on_3d_toggle)
+        header_3d.addWidget(self.chk_show_3d)
+        
+        gb_platform = QGroupBox()
+        gb_platform.setLayout(QVBoxLayout())
+        gb_platform.layout().addLayout(header_3d)
+        gb_platform_layout = QVBoxLayout()
         gb_platform_layout.setContentsMargins(6, 6, 6, 6)
         self.platform_canvas = PlatformCanvas()
         self.platform_canvas.setMinimumSize(420, 420)
         gb_platform_layout.addWidget(self.platform_canvas)
+        gb_platform.layout().addLayout(gb_platform_layout)
         layout.addWidget(gb_platform, stretch=3)
 
         # Axis legend
@@ -712,6 +733,20 @@ class MainWindow(QMainWindow):
     # Cinemática + Visualización + Serial
     # ------------------------------------------------------------------
 
+    def _should_log_position(self, percent_vector: np.ndarray) -> bool:
+        """Retorna True si deben loguear: cada 0.5s o si el vector cambió > 2%."""
+        # Log cada 0.5s
+        if self.t - self._last_log >= 0.5:
+            return True
+        
+        # O si el vector cambió > 2%
+        if self._last_logged_percent is not None:
+            delta = np.abs(percent_vector - self._last_logged_percent)
+            if np.any(delta > 2.0):
+                return True
+        
+        return False
+
     def send_heartbeat(self):
         if self.serial_manager.is_connected:
             self.serial_manager.send_raw("ping")
@@ -767,6 +802,7 @@ class MainWindow(QMainWindow):
     def compute_and_update(self, send_serial: bool = True):
         """
         Núcleo del modo TAREA (MANUAL o AUTO): calcula IK → actualiza gráficos → (opcional) manda a Arduino
+        Throttling: logs cada 0.5s o si cambia > 2%, gráfica cada 100ms.
         """
         try:
             q_mm, da, R = self._ik(self.y_desired)
@@ -776,12 +812,25 @@ class MainWindow(QMainWindow):
 
             self.q_percent = self._to_percent(q_mm)
             self.last_percent = self.q_percent
-            self._log_lengths("JOG TAREA", q_mm, self.q_percent, R)
+            
+            # Log throttling: cada 0.5s o si cambió > 2%
+            if self._should_log_position(self.q_percent):
+                self._log_lengths("JOG TAREA", q_mm, self.q_percent, R)
+                self._last_log = self.t
+                self._last_logged_percent = self.q_percent.copy()
 
             self._update_pose_labels_tarea()
 
-            self.platform_canvas.update_platform(self.da, self.R)
-            self.actuator_canvas.update_data(self.t, self.q_percent)
+            # 3D update (throttling a 5 Hz ya implementado)
+            if self._show_3d and self.t - self._last_draw >= 0.2:
+                self._last_draw = self.t
+                self.platform_canvas.update_platform(self.da, self.R)
+            
+            # Gráfica de actuadores: throttling a 100ms (10 Hz)
+            if self.t - self._last_actuator_plot >= 0.1:
+                self._last_actuator_plot = self.t
+                self.actuator_canvas.update_data(self.t, self.q_percent)
+            
             self.update_actuator_status(self.q_percent)
 
             if send_serial:
@@ -808,7 +857,12 @@ class MainWindow(QMainWindow):
 
         in_range = (q_mm >= self.l0 - 1e-6) & (q_mm <= self.l0 + self.stroke + 1e-6)
         percent = self._to_percent(q_mm)
-        self._log_lengths("JOG CARTESIANO", q_mm, percent, R)
+        
+        # Log throttling: cada 0.5s o si cambió > 2%
+        if self._should_log_position(percent):
+            self._log_lengths("JOG CARTESIANO", q_mm, percent, R)
+            self._last_log = self.t
+            self._last_logged_percent = percent.copy()
 
         self.q_mm = q_mm
         self.da = da
@@ -817,8 +871,17 @@ class MainWindow(QMainWindow):
         self.last_percent = percent
 
         self._update_pose_labels_cartesian(x, y, z, roll_deg, pitch_deg, yaw_deg)
-        self.platform_canvas.update_platform(da, R)
-        self.actuator_canvas.update_data(self.t, percent)
+        
+        # 3D update (throttling a 5 Hz ya implementado)
+        if self._show_3d and self.t - self._last_draw >= 0.2:
+            self._last_draw = self.t
+            self.platform_canvas.update_platform(da, R)
+        
+        # Gráfica de actuadores: throttling a 100ms (10 Hz)
+        if self.t - self._last_actuator_plot >= 0.1:
+            self._last_actuator_plot = self.t
+            self.actuator_canvas.update_data(self.t, percent)
+        
         self.update_actuator_status(percent, oor_mask=~in_range)
 
         if in_range.all():
@@ -995,19 +1058,28 @@ class MainWindow(QMainWindow):
             self.da = da
             self.R = R
             self.q_percent = self._to_percent(q_mm)
+            
+            # Log throttling: solo APPROACH y TRACK, cada 0.5s o si cambió > 2%
             if phase_str in ("APPROACH", "TRACK"):
-                self._log_lengths(phase_str, q_mm, self.q_percent, R)
+                if self._should_log_position(self.q_percent):
+                    self._log_lengths(phase_str, q_mm, self.q_percent, R)
+                    self._last_log = self.t
+                    self._last_logged_percent = self.q_percent.copy()
+            
             self.last_percent = self.q_percent
             
             # Keep calculation and send on the critical path
             self.update_actuator_status(self.q_percent)
             self._maybe_send(self.q_percent)
             
-            # Draw 3D at 5 Hz (every 0.2s) to avoid freezing the UI
-            if self.t - self._last_draw >= 0.2:
+            # 3D at 5 Hz, gráfica a 100ms
+            if self._show_3d and self.t - self._last_draw >= 0.2:
                 self._last_draw = self.t
                 self._update_pose_labels_tarea()
                 self.platform_canvas.update_platform(self.da, self.R)
+            
+            if self.t - self._last_actuator_plot >= 0.1:
+                self._last_actuator_plot = self.t
                 self.actuator_canvas.update_data(self.t, self.q_percent)
             
         except Exception as e:
@@ -1024,13 +1096,14 @@ class MainWindow(QMainWindow):
         self._apply_cartesian_target(send_serial=True)
 
     def _manual_axis_tick(self):
-        """Modo MANUAL con el diálogo 'Jog por eje' abierto: jog directo por pata."""
+        """Modo MANUAL con el diálogo 'Jog por eje' abierto: jog directo por pata.
+        NO actualiza 3D ni gráfica (solo barra). Solo loguea cuando cambia el vector.
+        """
         vector = self.axis_dialog.get_command_vector()
         self.last_percent = np.array(vector, dtype=float)
-        self.actuator_canvas.update_data(self.t, vector)
         self.update_actuator_status(self.last_percent)
         
-        # Log el comando de ejes si es la primera vez o si cambió
+        # Log el comando de ejes solo si es la primera vez o si cambió
         if not hasattr(self, '_last_axis_cmd') or self._last_axis_cmd != vector:
             self.log_event("pos {}".format(','.join(str(int(round(v))) for v in vector)))
             self._last_axis_cmd = vector
@@ -1051,6 +1124,15 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Controles de UI
     # ------------------------------------------------------------------
+    def _on_3d_toggle(self, checked: bool):
+        """Mostrar/ocultar el canvas 3D para reducir carga si está muy lento."""
+        self._show_3d = checked
+        self.platform_canvas.setVisible(checked)
+        if checked:
+            self.log_event("3D view habilitado")
+        else:
+            self.log_event("3D view deshabilitado")
+
     def go_home(self):
         """HOME button: Stop sequence, enter HOMING state, en_home=False until q=0."""
         # 1. Parar el lazo de control

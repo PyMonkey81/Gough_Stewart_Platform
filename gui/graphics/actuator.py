@@ -19,6 +19,7 @@ class ActuatorCanvas(FigureCanvas):
         self.ax.grid(True, color="#333", linestyle="--", alpha=0.6)
 
         self.time_window = 653.0
+        self.max_history = 60.0  # Recortar a últimos 60s
         self.colors = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7", "#dfe6e9"]
         self.lines = []
         self.data = [[] for _ in range(6)]
@@ -40,12 +41,23 @@ class ActuatorCanvas(FigureCanvas):
         self.draw_idle()
 
     def update_data(self, t, lengths):
+        """Agrega un punto a la gráfica. Recorta a los últimos 60s y redibuja."""
         self.time.append(t)
         for i in range(6):
             self.data[i].append(lengths[i])
+        
+        # Recortar a últimos 60s
+        if len(self.time) > 0:
+            t_min = t - self.max_history
+            while len(self.time) > 0 and self.time[0] < t_min:
+                self.time.pop(0)
+                for i in range(6):
+                    self.data[i].pop(0)
+        
+        # Actualizar líneas
+        for i in range(6):
             self.lines[i].set_data(self.time, self.data[i])
-
-        # Mantener toda la trayectoria dibujada como un chart de líneas, sin recortar historial
+        
         self.ax.set_xlim(0.0, self.time_window)
         self.draw_idle()
 
