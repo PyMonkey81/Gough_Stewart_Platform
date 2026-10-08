@@ -3,15 +3,16 @@ import numpy as np
 
 # config/parameters.py
 
-# Longitud de referencia (home) del prototipo L16-100
-OFFSET_ACTUADOR = 247.41          # ||A-B|| medido en HOME (cenit, patas retraídas), mm
-
 # Carrera real del Actuonix L16-100
 STROKE = 100.0                    # 100 mm
 
+# Longitud muerta ancla a ancla con el émbolo retraído (equivalente al 1.4895 m de MATLAB):
+# junta B + cuerpo retraído + junta M. Se resta una sola vez, al pasar a porcentaje.
+L0 = 44.32 + 100.0 + 44.33        # 188.65 mm
+
 # Rango físico completo: HOME es 0% (todo retraído)
-ACTUATOR_MIN = 247.41             # 0% retraído
-ACTUATOR_MAX = 347.41             # 100% = min + carrera
+ACTUATOR_MIN = L0                 # 0% retraído
+ACTUATOR_MAX = L0 + STROKE        # 100% = L0 + carrera
 ACTUATOR_HOME_PERCENT = 0         # HOME = 0% (retraído, cenit)
 
 

@@ -41,6 +41,7 @@ class SerialWorker(QObject):
             time.sleep(1.2)
             self.serial.clear()
             self.connected.emit(True)
+            self.serial.setDataTerminalReady(True)
             return
 
         self.connected.emit(False)

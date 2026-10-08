@@ -50,31 +50,23 @@ def test_trajectory_generator():
 def test_inverse_kinematics():
     """Test IK with β as elevation"""
     from kinematics.inverse import inverse_kinematics
-    from config.parameters import OFFSET_ACTUADOR
+    from config.parameters import L0
     
     print("\n=== Inverse Kinematics Test ===")
     
-    # Test HOME pose: α=0, β=0 (elevation = 0 = looking at horizon? or cenit?)
-    # Actually, elevation = 0 means horizon, elevation = 90 means cenit
-    # So HOME should be β=90° elevation for cenit position
-    # But the LMT table shows HOME as 10.10°, which is looking up from horizon
-    
-    # Let's test with the actual HOME position
-    y_home = np.radians([0.0, 10.10])  # α=0°, β=10.10° elevation
-    q_actuator, da, R = inverse_kinematics(y_home)
-    print(f"  HOME pose (α=0°, β=10.10° elevation):")
-    print(f"    q_actuator = {q_actuator}")
-    print(f"    q_actuator (all ~0 mm) = {q_actuator < 1.0}")
+    y_home = np.radians([0.0, 90.0])  # cenit: α=0°, β=90° elevación
+    q_mm, da, R = inverse_kinematics(y_home)
+    print(f"  HOME pose (α=0°, β=90° elevation):")
+    print(f"    q_mm = {q_mm} (L0 = {L0})")
     
     # Test an elevated pose
     y_elevated = np.radians([15.0, 45.60])  # α=15°, β=45.60° elevation
-    q_actuator2, _, _ = inverse_kinematics(y_elevated)
+    q_mm2, _, _ = inverse_kinematics(y_elevated)
     print(f"  Elevated pose (α=15°, β=45.60° elevation):")
-    print(f"    q_actuator = {q_actuator2}")
+    print(f"    q_mm = {q_mm2}")
     
-    # HOME should have q ≈ OFFSET_ACTUADOR ≈ 247.41 mm
-    # but inverse_kinematics returns q_actuator = q_geom - OFFSET_ACTUADOR
-    # so q_actuator should be ≈ 0 mm for HOME
+    # inverse_kinematics devuelve el largo total ancla a ancla; L0 se resta
+    # una sola vez en length_to_percent.
     print("  ✓ Inverse kinematics callable")
 
 
@@ -127,16 +119,16 @@ def test_main_window_instantiation():
 def test_parameters():
     """Verify parameters are loaded correctly"""
     from config.parameters import (
-        OFFSET_ACTUADOR, STROKE, ACTUATOR_MIN, ACTUATOR_MAX,
+        L0, STROKE, ACTUATOR_MIN, ACTUATOR_MAX,
         T_HOME_END, T_TRACKING_END, FILTER_WN,
         Az, Bz, D, RT
     )
     
     print("\n=== Parameters Test ===")
-    print(f"  OFFSET_ACTUADOR: {OFFSET_ACTUADOR} mm (expected 247.41)")
+    print(f"  L0: {L0} mm (expected 188.65)")
     print(f"  STROKE: {STROKE} mm (expected 100.0)")
-    print(f"  ACTUATOR_MIN: {ACTUATOR_MIN} mm (expected 247.41)")
-    print(f"  ACTUATOR_MAX: {ACTUATOR_MAX} mm (expected 347.41)")
+    print(f"  ACTUATOR_MIN: {ACTUATOR_MIN} mm (expected 188.65)")
+    print(f"  ACTUATOR_MAX: {ACTUATOR_MAX} mm (expected 288.65)")
     print(f"  T_HOME_END: {T_HOME_END} s (expected 60.0)")
     print(f"  T_TRACKING_END: {T_TRACKING_END} s (expected 653.0)")
     print(f"  FILTER_WN: {FILTER_WN} (expected 3.4)")
@@ -147,7 +139,7 @@ def test_parameters():
     print(f"  (TRAJ_POINTS loaded from config/parameters.json, not Python)")
     
     # Verify mm units
-    assert OFFSET_ACTUADOR > 100, "OFFSET_ACTUADOR should be in mm, not meters"
+    assert L0 > 100, "L0 should be in mm, not meters"
     assert D[2] > 100, "D[2] should be in mm, not meters"
     
     print("  ✓ All parameters verified (mm units)")
@@ -171,9 +163,8 @@ def test_config_json():
         print(f"  Loaded parameters: {list(params.keys())}")
         
         # Check critical values
-        if "OFFSET_ACTUADOR" in params:
-            offset = params["OFFSET_ACTUADOR"]
-            print(f"  OFFSET_ACTUADOR: {offset} (expected 247.41)")
+        if "L0" in params:
+            print(f"  L0: {params['L0']} (expected 188.65)")
             
         if "TRAJ_POINTS" in params:
             traj = params["TRAJ_POINTS"]

@@ -1,5 +1,5 @@
 import numpy as np
-from config.parameters import Az, Bz, ALPHA_0, D, RT, OFFSET_ACTUADOR
+from config.parameters import Az, Bz, ALPHA_0, D, RT
 
 def TIK(y, a0=ALPHA_0, D=D, rt=RT):
     """
@@ -45,9 +45,11 @@ def PIK(da, R, Az=Az, Bz=Bz):
         q[i] = np.linalg.norm(leg)
     return q
 
-def inverse_kinematics(y):
-    """Función principal: y → q_actuator"""
-    da, R = TIK(y)
-    q_geom = PIK(da, R)
-    q_actuator = q_geom - OFFSET_ACTUADOR
-    return q_actuator, da, R
+def inverse_kinematics(y, rt=RT, a0=ALPHA_0, D=D):
+    """Función principal: y=[α, β elevación] en rad → q_mm (largo ancla a ancla, sin restar L0).
+
+    rt debe ser el de los parámetros cargados (parameters.json); da = D + rt·R[:,2].
+    """
+    da, R = TIK(y, a0=a0, D=D, rt=rt)
+    q_mm = PIK(da, R)
+    return q_mm, da, R

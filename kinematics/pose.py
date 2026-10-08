@@ -8,7 +8,7 @@ inverse_kinematics(y) arma (da, R) a partir de (alpha, beta) vía TIK.
 import numpy as np
 
 from kinematics.inverse import PIK
-from config.parameters import D, OFFSET_ACTUADOR
+from config.parameters import D
 
 
 def rpy_to_R(roll: float, pitch: float, yaw: float) -> np.ndarray:
@@ -37,10 +37,9 @@ def pose_to_q(x: float, y: float, z: float, roll: float, pitch: float, yaw: floa
                           respecto a la base, desplazado por D)
     R  = rpy_to_R(roll, pitch, yaw)
     
-    Returns: q_actuator (mm), da (mm), R (3x3)
+    Returns: q_mm (largo total ancla a ancla, sin restar L0), da (mm), R (3x3)
     """
     da = D + np.array([x, y, z])
     R = rpy_to_R(roll, pitch, yaw)
-    q_geom = PIK(da, R)
-    q_actuator = q_geom - OFFSET_ACTUADOR
-    return q_actuator, da, R
+    q_mm = PIK(da, R)
+    return q_mm, da, R

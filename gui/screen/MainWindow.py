@@ -19,12 +19,12 @@ from gui.dialog.parameterdiag import ParametersDialog, load_parameters
 from gui.dialog.axisconfigdialog import AxisConfigDialog
 from connection.serial_manager import SerialManager
 
-from kinematics.inverse import inverse_kinematics, PIK
+from kinematics.inverse import inverse_kinematics
 from kinematics.pose import pose_to_q
 from config.parameters import (
     D, ACTUATOR_MIN, ACTUATOR_MAX, ACTUATOR_HOME_PERCENT,
     ALPHA_BETA_LIMIT_DEG, CARTESIAN_LIMITS, CARTESIAN_STEP,
-    APPROACH_S, RETURN_S, OFFSET_ACTUADOR, STROKE, Az, Bz
+    APPROACH_S, RETURN_S, L0, STROKE, RT, ALPHA_0
 )
 from trajectory.generator import TrajectoryConfig, TrajectoryGenerator
 
@@ -40,14 +40,13 @@ ACCENT_FAULT_BRIGHT = "#FF7777"
 AXIS_COLORS = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7", "#dfe6e9"]
 
 
-def length_to_percent(q: np.ndarray) -> np.ndarray:
-    """Extensión del actuador (mm, 0 en HOME retraído) a porcentaje de carrera.
+def length_to_percent(q_mm: np.ndarray, l0: float = L0, stroke: float = STROKE) -> np.ndarray:
+    """Largo total ancla a ancla (mm, salida de PIK) a porcentaje de carrera.
 
-    inverse_kinematics y pose_to_q ya restan OFFSET_ACTUADOR. No volver a
-    restar ACTUATOR_MIN: eso dejaba las barras en 0 % en cuanto la plataforma
-    salía de cenit.
+    Única resta de la longitud muerta: pct = sat((q - L0) / carrera * 100, 0, 100).
+    inverse_kinematics y pose_to_q devuelven q total; no restan nada antes.
     """
-    percent = np.asarray(q, dtype=float) / STROKE * 100.0
+    percent = (np.asarray(q_mm, dtype=float) - l0) / stroke * 100.0
     return np.clip(percent, 0, 100)
 
 
@@ -88,7 +87,11 @@ class MainWindow(QMainWindow):
         self.y_desired = np.array([0.0, np.pi / 2])   # cenit: alpha 0, elevación 90°
 
         # Resultados del último cálculo de cinemática
-        self.q_actuator = np.zeros(6)
+        self.q_mm = np.zeros(6)
+        self.l0 = L0
+        self.stroke = STROKE
+        self.rt = RT
+        self.a0 = ALPHA_0
         self.q_percent = np.full(6, ACTUATOR_HOME_PERCENT, dtype=float)
         self.last_percent = np.full(6, ACTUATOR_HOME_PERCENT, dtype=float)
         self.da = D.copy()
@@ -764,13 +767,14 @@ class MainWindow(QMainWindow):
         Núcleo del modo TAREA (MANUAL o AUTO): calcula IK → actualiza gráficos → (opcional) manda a Arduino
         """
         try:
-            q_actuator, da, R = inverse_kinematics(self.y_desired)
-            self.q_actuator = q_actuator
+            q_mm, da, R = self._ik(self.y_desired)
+            self.q_mm = q_mm
             self.da = da
             self.R = R
 
-            self.q_percent = length_to_percent(q_actuator)
+            self.q_percent = self._to_percent(q_mm)
             self.last_percent = self.q_percent
+            self._log_lengths("JOG TAREA", q_mm, self.q_percent, R)
 
             self._update_pose_labels_tarea()
 
@@ -792,7 +796,7 @@ class MainWindow(QMainWindow):
         roll_deg, pitch_deg, yaw_deg = self.spin_roll.value(), self.spin_pitch.value(), self.spin_yaw.value()
 
         try:
-            q_actuator, da, R = pose_to_q(
+            q_mm, da, R = pose_to_q(
                 x, y, z, np.deg2rad(roll_deg), np.deg2rad(pitch_deg), np.deg2rad(yaw_deg)
             )
         except Exception as e:
@@ -800,10 +804,11 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error de Cinemática", str(e))
             return
 
-        in_range = (q_actuator >= -1e-6) & (q_actuator <= STROKE + 1e-6)
-        percent = length_to_percent(q_actuator)
+        in_range = (q_mm >= self.l0 - 1e-6) & (q_mm <= self.l0 + self.stroke + 1e-6)
+        percent = self._to_percent(q_mm)
+        self._log_lengths("JOG CARTESIANO", q_mm, percent, R)
 
-        self.q_actuator = q_actuator
+        self.q_mm = q_mm
         self.da = da
         self.R = R
         self.q_percent = percent
@@ -871,13 +876,10 @@ class MainWindow(QMainWindow):
         # Inicializar rótulo de fase
         self.lbl_track_phase.setText("HOME")
         
-        # Loguea HOME con PIK calculado
+        # Loguea HOME (cenit) con la misma inversa y el rt cargado
         try:
-            q_geom_home = PIK(D, np.eye(3), Az=Az, Bz=Bz)
-            pct_home = length_to_percent(q_geom_home - OFFSET_ACTUADOR)
-            q_geom_str = ", ".join([f"{q:.2f}" for q in q_geom_home])
-            pct_str = ", ".join([f"{p:.1f}" for p in pct_home])
-            self.log_event(f"HOME: PIK(D,I) = [{q_geom_str}] mm  pct = [{pct_str}]%")
+            q_home, _, R_home = self._ik(np.array([0.0, np.pi / 2]))
+            self._log_lengths("HOME cenit", q_home, self._to_percent(q_home), R_home)
         except Exception as e:
             self.log_event(f"HOME: PIK error: {e}")
 
@@ -979,11 +981,13 @@ class MainWindow(QMainWindow):
             self.lbl_track_phase.setText(phase_str)
             
             # Calculate IK based on (α, β) from generator
-            q_actuator, da, R = inverse_kinematics(self.y_desired)
-            self.q_actuator = q_actuator
+            q_mm, da, R = self._ik(self.y_desired)
+            self.q_mm = q_mm
             self.da = da
             self.R = R
-            self.q_percent = length_to_percent(q_actuator)
+            self.q_percent = self._to_percent(q_mm)
+            if phase_str in ("APPROACH", "TRACK"):
+                self._log_lengths(phase_str, q_mm, self.q_percent, R)
             self.last_percent = self.q_percent
             
             # Keep calculation and send on the critical path
@@ -1272,6 +1276,10 @@ class MainWindow(QMainWindow):
 
     def on_parameters_changed(self, params: dict):
         self.current_params = params
+        self.l0 = float(params.get("L0", L0))
+        self.stroke = float(params.get("STROKE", STROKE))
+        self.rt = float(params.get("RT", RT))
+        self.a0 = float(params.get("ALPHA_0", ALPHA_0))
         self.demo_duration = float(params.get("DEMO_DURATION", 60.0))
         self.actuator_canvas.set_time_window(self.demo_duration)
 
@@ -1286,14 +1294,33 @@ class MainWindow(QMainWindow):
         self.traj_gen.set_tracking_points(traj_points_rad)
         self.log_event("Parámetros actualizados")
         
-        # Log HOME kinematics: q_geom = PIK(D, I), q_percent based on q_actuator
-        q_geom_home = PIK(D, np.eye(3), Az=Az, Bz=Bz)
-        q_actuator_home = q_geom_home - OFFSET_ACTUADOR
-        pct_home = length_to_percent(q_actuator_home)
-        
-        q_geom_str = ", ".join([f"{q:.2f}" for q in q_geom_home])
-        pct_str = ", ".join([f"{p:.1f}" for p in pct_home])
-        self.log_event(f"HOME: PIK(D,I) = [{q_geom_str}] mm  pct = [{pct_str}]%")
+        q_home, _, R_home = self._ik(np.array([0.0, np.pi / 2]))
+        self._log_lengths("HOME cenit", q_home, self._to_percent(q_home), R_home)
+
+        # Prueba fija contra el TIK de MATLAB: q_mm ≈ [247.3, 283.0, 361.2, 373.4, 308.0, 258.9]
+        for example_alpha, example_beta in ((9.9, 10.10), (5.1, 48.5)):
+            example_q, _, example_R = self._ik(np.deg2rad([example_alpha, example_beta]))
+            self._log_lengths(
+                f"Ejemplo IK alpha={example_alpha:.1f} beta={example_beta:.2f} (elevacion) rt={self.rt:.1f}",
+                example_q, self._to_percent(example_q), example_R,
+            )
+
+    def _ik(self, y: np.ndarray):
+        return inverse_kinematics(y, rt=self.rt, a0=self.a0)
+
+    def _to_percent(self, q_mm: np.ndarray) -> np.ndarray:
+        return length_to_percent(q_mm, self.l0, self.stroke)
+
+    def _log_lengths(self, tag: str, q_mm: np.ndarray, pct: np.ndarray, R: np.ndarray = None):
+        lengths = ", ".join(f"{q:.2f}" for q in q_mm)
+        percentages = ", ".join(f"{p:.1f}" for p in pct)
+        r_col = ""
+        if R is not None:
+            r_col = "R[:,2]=[" + ", ".join(f"{v:.4f}" for v in np.asarray(R)[:, 2]) + "] "
+        self.log_event(
+            f"{tag}: {r_col}q_mm=[{lengths}] pct=[{percentages}] "
+            f"L0={self.l0:.2f} carrera={self.stroke:.2f}"
+        )
 
     def log_event(self, text: str):
         stamp = time.strftime("%H:%M:%S")

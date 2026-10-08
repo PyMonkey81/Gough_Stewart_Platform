@@ -16,7 +16,7 @@ import numpy as np
 SETTINGS_PATH = Path(__file__).resolve().parents[2] / "config" / "parameters.json"
 
 DEFAULT_PARAMETERS = {
-    "OFFSET_ACTUADOR": 247.41,
+    "L0": 188.65,
     "STROKE": 100.0,
     "ACTUATOR_HOME_PERCENT": 0.0,
     "ALPHA_0": 0.0,
@@ -62,6 +62,8 @@ def load_parameters() -> dict:
             merged = deepcopy(DEFAULT_PARAMETERS)
             if isinstance(data, dict):
                 merged.update(data)
+            # OFFSET_ACTUADOR (247.41) ya no se usa; L0 es la única longitud muerta.
+            merged.pop("OFFSET_ACTUADOR", None)
             return merged
         except Exception:
             pass
@@ -264,11 +266,11 @@ class ParametersDialog(QDialog):
         gb_act = QGroupBox("Actuadores (L16)")
         form_act = QFormLayout(gb_act)
 
-        self.sp_offset = self._spin(100, 400, 2, 0.1)  # mm
+        self.sp_l0 = self._spin(100, 400, 2, 0.1)      # mm
         self.sp_stroke = self._spin(10, 150, 1, 0.5)   # mm
         self.sp_home_pct = self._spin(0, 100, 1, 1)    # %
 
-        form_act.addRow("OFFSET_ACTUADOR (mm):", self.sp_offset)
+        form_act.addRow("L0 ancla a ancla retraído (mm):", self.sp_l0)
         form_act.addRow("STROKE (mm):", self.sp_stroke)
         form_act.addRow("HOME %:", self.sp_home_pct)
 
@@ -276,7 +278,7 @@ class ParametersDialog(QDialog):
         self.lbl_min_max.setStyleSheet("color: #81c784; font-size: 12px;")
         form_act.addRow("Rango calculado:", self.lbl_min_max)
 
-        self.sp_offset.valueChanged.connect(self._update_min_max)
+        self.sp_l0.valueChanged.connect(self._update_min_max)
         self.sp_stroke.valueChanged.connect(self._update_min_max)
 
         tab1_layout.addWidget(gb_act)
@@ -434,16 +436,16 @@ class ParametersDialog(QDialog):
         return sp
 
     def _update_min_max(self):
-        offset = self.sp_offset.value()
+        l0 = self.sp_l0.value()
         stroke = self.sp_stroke.value()
-        amin = offset  # ACTUATOR_MIN = OFFSET (0% retraído)
-        amax = offset + stroke  # ACTUATOR_MAX = OFFSET + STROKE (100% extendido)
+        amin = l0  # 0% retraído
+        amax = l0 + stroke  # 100% extendido
         self.lbl_min_max.setText(f"MIN = {amin:.2f} mm    |    MAX = {amax:.2f} mm")
 
     def _load_values(self):
         p = self.defaults
 
-        self.sp_offset.setValue(p["OFFSET_ACTUADOR"])
+        self.sp_l0.setValue(p.get("L0", DEFAULT_PARAMETERS["L0"]))
         self.sp_stroke.setValue(p["STROKE"])
         self.sp_home_pct.setValue(p["ACTUATOR_HOME_PERCENT"])
         self._update_min_max()
@@ -482,11 +484,11 @@ class ParametersDialog(QDialog):
             traj.append([alpha, beta])
 
         return {
-            "OFFSET_ACTUADOR": self.sp_offset.value(),
+            "L0": self.sp_l0.value(),
             "STROKE": self.sp_stroke.value(),
             "ACTUATOR_HOME_PERCENT": self.sp_home_pct.value(),
-            "ACTUATOR_MIN": self.sp_offset.value(),
-            "ACTUATOR_MAX": self.sp_offset.value() + self.sp_stroke.value(),
+            "ACTUATOR_MIN": self.sp_l0.value(),
+            "ACTUATOR_MAX": self.sp_l0.value() + self.sp_stroke.value(),
             "ALPHA_0": self.sp_alpha0.value(),
             "RT": self.sp_rt.value(),
             "D": [self.sp_dx.value(), self.sp_dy.value(), self.sp_dz.value()],

@@ -83,3 +83,20 @@ dos formas de generar el mismo vector de 6 posiciones.
   pose deseada se convierte a longitudes de actuador y estas a porcentaje de carrera.
 - El log de eventos (conexión, home, pos, errores de IK) se muestra en el panel
   **EVENT LOG** de la columna derecha.
+- β es elevación (90° = cenit, 0° = horizonte) y entra a `TIK` tal cual, en radianes
+  (sin 90°−β). `TIK` es el de MATLAB con a0 = 0 y `da = D + rt·R[:,2]`.
+- La app usa el `RT` y el `ALPHA_0` de `config/parameters.json` (rt = 90 mm), no el
+  `RT = 0` por defecto de `config/parameters.py`.
+- `inverse_kinematics` devuelve `q_mm = PIK(da, R) = ‖da + R·Az − Bz‖`, el largo
+  total ancla a ancla en mm, sin restar nada. La única resta ocurre al pasar a
+  porcentaje: `pct = sat((q_mm − L0) / carrera · 100, 0, 100)`. `L0` se edita en el
+  diálogo (guardado: 247.41 mm) y la carrera es de 100 mm.
+- En cada jog (TAREA/CARTESIANO) y en cada tick de **APPROACH/TRACK** se registra una
+  línea `R[:,2]=[…] q_mm=[…] pct=[…] L0=… carrera=…`. `q_mm` es el valor real, aunque
+  pct se sature. El jog por eje manda porcentajes directos y no tiene longitudes.
+- Prueba fija contra MATLAB, α=9.9°, β=10.10°:
+  `R[:,2]=[0.9698, -0.1693, 0.1754]`,
+  `q_mm=[247.33, 283.00, 361.25, 373.40, 308.04, 258.92]`,
+  `pct=[0, 35.6, 100, 100, 60.6, 11.5]`. L3 y L4 superan 347.41 mm y se saturan.
+- Con rt = 90, el cenit da `q_mm = 336.31 mm` en las seis patas (≈ 88.9 %). Los
+  displays de HOME siguen fijos en 0 %.
