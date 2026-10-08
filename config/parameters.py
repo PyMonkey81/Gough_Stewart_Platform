@@ -8,7 +8,7 @@ STROKE = 100.0                    # 100 mm
 
 # Longitud muerta ancla a ancla con el émbolo retraído (equivalente al 1.4895 m de MATLAB):
 # junta B + cuerpo retraído + junta M. Se resta una sola vez, al pasar a porcentaje.
-L0 = 44.32 + 100.0 + 44.33        # 188.65 mm
+L0 = 249.4        # 188.65 mm
 
 # Rango físico completo: HOME es 0% (todo retraído)
 ACTUATOR_MIN = L0                 # 0% retraído
@@ -19,22 +19,23 @@ ACTUATOR_HOME_PERCENT = 0         # HOME = 0% (retraído, cenit)
 # ====================== Geometría (escala prototipo, mm) ======================
 # Az: puntos de anclaje en marco plataforma (origen = centro del agujero)
 # Bz: puntos de anclaje en marco base (fijo)
+# Reordenados para alinear con CAD: B1/P1 = Pin01 (eje 1)
 Az = np.array([
-    [ 46.95, -39.63, -44.33],
-    [ 10.84, -60.48, -44.33],
-    [-57.79, -20.85, -44.33],
-    [-57.79,  20.85, -44.33],
-    [ 10.84,  60.48, -44.33],
-    [ 46.95,  39.63, -44.33],
+    [ 46.95,  39.63, -44.33],     # fila 0 (nuevo): eje 1 (Pin01)
+    [ 10.84,  60.48, -44.33],     # fila 1 (nuevo): eje 2
+    [-57.79,  20.85, -44.33],     # fila 2 (nuevo): eje 3
+    [-57.79, -20.85, -44.33],     # fila 3 (nuevo): eje 4
+    [ 10.84, -60.48, -44.33],     # fila 4 (nuevo): eje 5
+    [ 46.95, -39.63, -44.33],     # fila 5 (nuevo): eje 6
 ])  # mm
 
 Bz = np.array([
-    [ 87.79, -20.85, 44.32],
-    [-25.84, -86.46, 44.32],
-    [-61.95, -65.61, 44.32],
-    [-61.95,  65.61, 44.32],
-    [-25.84,  86.46, 44.32],
-    [ 87.79,  20.85, 44.32],
+    [ 87.79,  20.85, 44.32],      # fila 0 (nuevo): eje 1 (Pin01)
+    [-25.84,  86.46, 44.32],      # fila 1 (nuevo): eje 2
+    [-61.95,  65.61, 44.32],      # fila 2 (nuevo): eje 3
+    [-61.95, -65.61, 44.32],      # fila 3 (nuevo): eje 4
+    [-25.84, -86.46, 44.32],      # fila 4 (nuevo): eje 5
+    [ 87.79, -20.85, 44.32],      # fila 5 (nuevo): eje 6
 ])  # mm
 
 # ====================== Parámetros de la plataforma (en mm) ======================
